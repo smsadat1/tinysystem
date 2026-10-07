@@ -1,6 +1,7 @@
 #ifndef TINYCACHE_H
 #define TINYCACHE_H
 
+#include <pthread.h>
 #include <stdbool.h>
 #include <stdio.h> 
 #include <string.h>
@@ -57,13 +58,13 @@ void tc_error(char* mesg);
 
 void parse_command(Cache* cache, int conn_fd);
 
-bool tc_set(cache_entry* ce, command str);
-char* tc_get(cache_entry* ce, command str);
-bool tc_delete(cache_entry* ce, command str);
-bool tc_exists(cache_entry* ce, command str);
-bool tc_expire(cache_entry* ce, command str);
-bool tc_ttl(cache_entry* ce, command str);
-char* tc_stat(cache_entry* ce);
+bool tc_set(Cache* c, command str);
+char* tc_get(Cache* c, command str);
+bool tc_delete(Cache* c, command str);
+bool tc_exists(Cache* c, command str);
+bool tc_expire(Cache* c, command str);
+bool tc_ttl(Cache* c, command str);
+char* tc_stat(Cache* c);
 
 
 #endif // TINYCACHE_H

@@ -18,7 +18,7 @@ void parse(Cache* cache, char commandbuf[]) {
             .ttl = 300,
         };
 
-        if(tc_set(cache->ce, c)) 
+        if(tc_set(cache, c)) 
             printf("OK\n");
         else 
             tc_error("Failed to set key");
@@ -31,7 +31,7 @@ void parse(Cache* cache, char commandbuf[]) {
            .value = "", .value_len = 0, .ttl = -1,
         };
 
-        printf("Value: %s\n", tc_get(cache->ce, c));
+        printf("Value: %s\n", tc_get(cache, c));
     } 
     else if(strcmp(command_type, "DELETE") == 0) {
         
@@ -41,7 +41,7 @@ void parse(Cache* cache, char commandbuf[]) {
             .value = "", .value_len = 0, .ttl = -1,
         };
 
-        if(tc_delete(cache->ce, c)) 
+        if(tc_delete(cache, c)) 
             printf("OK\n");
         else 
             tc_error("Failed to delete key");
@@ -54,7 +54,7 @@ void parse(Cache* cache, char commandbuf[]) {
             .value = "", .value_len = 0, .ttl = -1,
         };
 
-        if(tc_expire(cache->ce, c)) 
+        if(tc_expire(cache, c)) 
             printf("OK\n");
         else 
             tc_error("Failed to expire key");
@@ -67,7 +67,7 @@ void parse(Cache* cache, char commandbuf[]) {
             .value = "", .value_len = 0, .ttl = -1,
         };
 
-        if(tc_exists(cache->ce, c)) 
+        if(tc_exists(cache, c)) 
             printf("EXISTS\n");
         else 
             tc_error("DOES NOT EXIST");
@@ -80,7 +80,7 @@ void parse(Cache* cache, char commandbuf[]) {
             .ttl = atoi(strtok(NULL, " ")),
         };
 
-        if(tc_set(cache->ce, c)) 
+        if(tc_set(cache, c)) 
             printf("OK\n");
         else 
             tc_error("Failed to set TTL");
@@ -90,7 +90,7 @@ void parse(Cache* cache, char commandbuf[]) {
     }
     else if(strcmp(command_type, "STAT") == 0) {
         
-        printf("%s\n", tc_stat(cache->ce));
+        printf("%s\n", tc_stat(cache));
     } 
     else {
         printf("Unknown command: %s\n", commandbuf);
