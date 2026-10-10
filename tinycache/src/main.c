@@ -1,6 +1,6 @@
 #include "tinycache.h"
 
-int main(int argc, char const *argv[])
+int main()
 {
     Cache cache;
     init_cache(&cache);

@@ -7,6 +7,10 @@ void tc_error(char* mesg) {
     exit(0);
 }
 
+void tc_info(char* mesg) {
+    printf("Error: %s\n", mesg);
+}
+
 void tc_server(Cache* cache)
 {
     int sock_fd, conn_fd;
@@ -44,6 +48,4 @@ void tc_server(Cache* cache)
     
     printf("Closing connection bye bye...\n");
     close(sock_fd);
-
-    return 0;
 }

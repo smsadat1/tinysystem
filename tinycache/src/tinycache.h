@@ -4,6 +4,7 @@
 #include <pthread.h>
 #include <stdbool.h>
 #include <stdio.h> 
+#include <stdint.h>
 #include <string.h>
 #include <netdb.h> 
 #include <netinet/in.h> 
@@ -19,6 +20,8 @@
 #define TC_DEFAULT_TTL 300
 #define TC_MAX_MEMORY_MB 128
 #define TC_LRU_INTERVAL_SEC 5
+#define TC_NO_EXPIRY 0
+#define TC_BUCKET_COUNT INT16_MAX
 
 
 typedef struct command_t {
@@ -33,38 +36,55 @@ typedef struct cache_entry_t {
     char *key;
     void *value;
     size_t value_len;
-
+    bool expiry;
     uint64_t expires_at;
-
-    struct cache_entry *prev;
     struct cache_entry *next;
 } cache_entry;
 
 
 typedef struct cache_t {
-    cache_entry* ce;
+    cache_entry** buckets;
     size_t mem_used;
     size_t mem_max;
     pthread_mutex_t lock;
 } Cache;
 
 
+void tc_server(Cache* cache);
+
+
+// logging
+void tc_info(char* mesg);
+void tc_error(char* mesg);
+
+
+// command parsing from server
+void parse_command(Cache* cache, int conn_fd);
+
+
+// cache management api
+bool tc_set(Cache* c, command* str);
+void* tc_get(Cache* c, command* str);
+bool tc_delete(Cache* c, command* str);
+bool tc_exists(Cache* c, command* str);
+bool tc_expire(Cache* c, command* str);
+uint32_t tc_ttl(Cache* c, command* str);
+void tc_stat(Cache* c);
+
+
+// core implementations over hashmap
+
 void init_cache(Cache* cache);
 void destroy_cache(Cache* cache);
 
-void tc_server(Cache* cache);
+// used by SET
+bool insert(Cache* c, char* key, char* value, int value_len, int ttl);
+// used by GET, TTL, EXPIRE, EXISTS
+cache_entry* search(Cache* ce, char* key);
+// used by DELETE
+bool delete(cache_entry* ce, char* key);
 
-void tc_error(char* mesg);
-
-void parse_command(Cache* cache, int conn_fd);
-
-bool tc_set(Cache* c, command str);
-char* tc_get(Cache* c, command str);
-bool tc_delete(Cache* c, command str);
-bool tc_exists(Cache* c, command str);
-bool tc_expire(Cache* c, command str);
-bool tc_ttl(Cache* c, command str);
-char* tc_stat(Cache* c);
-
+// policy implementation
+void set_policy(char* policy);
 
 #endif // TINYCACHE_H
