@@ -5,11 +5,21 @@
 void init_cache(Cache* cache) {
 
     // any number of buckets
-    cache->buckets = (cache_entry**)malloc(sizeof(cache_entry*));
-    cache->mem_used = 0;
-    cache->mem_max = TC_MAX_MEMORY_MB * 1024 * 1024;
+    cache->buckets = (cache_entry**)calloc(TC_BUCKET_COUNT, sizeof(cache_entry*));
+    if (cache->buckets == NULL) {
+       perror("Failed to allocate cache buckets");
+       abort();
+    }
 
-    pthread_mutex_init(&cache->lock, NULL);
+    cache->entries = 0;
+    cache->mem_used = 0;
+    cache->mem_max = TC_MAX_MEMORY_MB * 1024ULL * 1024ULL;
+
+    if (pthread_mutex_init(&cache->lock, NULL) != 0) {
+        free(cache->buckets);
+        cache->buckets = NULL;
+        abort();
+    }
 }
 
 // NULL whole cache before exit
@@ -38,6 +48,7 @@ bool insert(
 ) {
     
     size_t bucket_index = sdbm_hash(key) % TC_BUCKET_COUNT;
+    printf("bucket idx: %lu\n", bucket_index);
     
     cache_entry* new_cache_entry = (cache_entry*)malloc(sizeof(cache_entry));
     if(new_cache_entry == NULL) {
@@ -77,6 +88,10 @@ bool insert(
     // add at the beginning of bucket
     new_cache_entry->next = c->buckets[bucket_index];
     c->buckets[bucket_index] = new_cache_entry;
+
+    // increment entry & memory count
+    c->entries += 1;   
+    c->mem_used += new_cache_entry->value_len + strlen(new_cache_entry->key);
 
     pthread_mutex_unlock(&c->lock);
 
@@ -124,9 +139,14 @@ bool delete(Cache* c, char* key) {
                 prev_entry->next = curr_entry->next;
             }
 
+            // decrement count
+            c->entries -= 1;
+            c->mem_used -= (curr_entry->value_len + strlen(curr_entry->key));
+
             free(curr_entry->key);
             free(curr_entry->value);
             free(curr_entry);
+
             return true;
         }
 
