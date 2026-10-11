@@ -39,13 +39,24 @@ void* tc_get(Cache* c, command* str) {
     if (ce->value_len > 0) {
         memcpy(value, ce->value, ce->value_len);
     }
+
+    // update LRU
+    lru_update_lock(c, ce);
+
     pthread_mutex_unlock(&c->lock);
 
     return value;
 }
 
 bool tc_delete(Cache* c, command* str) {
-    return delete(c, str->key);
+
+    bool result = false;
+
+    pthread_mutex_lock(&c->lock);
+    result = delete(c, str->key);
+    pthread_mutex_unlock(&c->lock);
+    
+    return result;
 }
 
 bool tc_exists(Cache* c, command* str) {
@@ -65,6 +76,9 @@ bool tc_exists(Cache* c, command* str) {
         pthread_mutex_unlock(&c->lock);
         return false;
     }
+
+    // update LRU
+    lru_update_lock(c, ce);
 
     pthread_mutex_unlock(&c->lock);
     return true;
@@ -111,7 +125,6 @@ uint32_t tc_ttl(Cache* c, command* str) {
     cache_entry* ce = search(c, str->key);
     if(ce == NULL) {
         pthread_mutex_unlock(&c->lock);
-        puts("No entry ??");
         return 0;
     }
 
@@ -120,13 +133,11 @@ uint32_t tc_ttl(Cache* c, command* str) {
         // lazy deletion
         delete(c, str->key);
         pthread_mutex_unlock(&c->lock);
-        puts("lazy deletion ?");
         return 0;
     }
 
     if (ce->expires_at == 0) {
        pthread_mutex_unlock(&c->lock);
-       puts("No expiry set ?");
        return 0;
     }
 

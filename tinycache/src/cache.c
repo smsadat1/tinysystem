@@ -48,7 +48,7 @@ bool insert(
 ) {
     
     size_t bucket_index = sdbm_hash(key) % TC_BUCKET_COUNT;
-    printf("bucket idx: %lu\n", bucket_index);
+    // printf("bucket idx: %lu\n", bucket_index);
     
     cache_entry* new_cache_entry = (cache_entry*)malloc(sizeof(cache_entry));
     if(new_cache_entry == NULL) {
@@ -92,6 +92,9 @@ bool insert(
     // increment entry & memory count
     c->entries += 1;   
     c->mem_used += new_cache_entry->value_len + strlen(new_cache_entry->key);
+
+    // update LRU
+    lru_insert_lock(c, new_cache_entry);
 
     pthread_mutex_unlock(&c->lock);
 
@@ -142,6 +145,9 @@ bool delete(Cache* c, char* key) {
             // decrement count
             c->entries -= 1;
             c->mem_used -= (curr_entry->value_len + strlen(curr_entry->key));
+
+            // update LRU (remove entry from LRU list before final deletion)
+            lru_remove_lock(c, curr_entry);
 
             free(curr_entry->key);
             free(curr_entry->value);
