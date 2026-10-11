@@ -71,8 +71,8 @@ void parse(Cache* cache, char commandbuf[]) {
         
         command c = {
             .key = strtok(NULL, " "),
-            .key_len = strlen(c.key),
-            .value = "", .value_len = 0, .ttl = -1,
+            .value = "", .value_len = 0, 
+            .ttl = -1,
         };
 
         if(tc_exists(cache, &c)) 

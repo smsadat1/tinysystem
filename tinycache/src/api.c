@@ -138,7 +138,16 @@ uint32_t tc_ttl(Cache* c, command* str) {
 void tc_stat(Cache* c) {
     pthread_mutex_lock(&c->lock);
     
-    // print all key value pairs
+    printf("Total entries: %lu\n", c->entries);
+    printf("Memory used (bytes): %lu/%lu\n", c->mem_used, c->mem_max);
+
+    if(c->policy == EVICTION_LRU) {
+        puts("Eviction policy: LRU");
+    } 
+    else if (c->policy == EVICTION_LFU)
+    {
+        puts("Eviction policy: LFU");
+    }
 
     pthread_mutex_unlock(&c->lock);
 }
