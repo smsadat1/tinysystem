@@ -8,7 +8,7 @@ bool tc_set(Cache* c, command* str) {
         c,
         str->key,
         str->value, str->value_len,
-        str->ttl
+        TC_NO_EXPIRY
     );
 }
 
@@ -25,7 +25,7 @@ void* tc_get(Cache* c, command* str) {
     if(ce->expires_at != 0 &&
     ce->expires_at <= (uint64_t)time(NULL)) {
         // lazy deletion
-        delete(ce, str->key);
+        delete(c, str->key);
         pthread_mutex_unlock(&c->lock);
         return NULL;
     }
@@ -61,7 +61,7 @@ bool tc_exists(Cache* c, command* str) {
     if(ce->expires_at != 0 &&
     ce->expires_at <= (uint64_t)time(NULL)) {
         // lazy deletion
-        delete(ce, str->key);
+        delete(c, str->key);
         pthread_mutex_unlock(&c->lock);
         return false;
     }
@@ -83,7 +83,7 @@ bool tc_expire(Cache* c, command* str) {
     if(ce->expires_at != 0 &&
     ce->expires_at <= (uint64_t)time(NULL)) {
         // lazy deletion
-        delete(ce, str->key);
+        delete(c, str->key);
         pthread_mutex_unlock(&c->lock);
         return false;
     }
@@ -100,6 +100,9 @@ bool tc_expire(Cache* c, command* str) {
         pthread_mutex_unlock(&c->lock);
         return false;
     }
+
+    // should not reach here
+    return false;
 }
 
 uint32_t tc_ttl(Cache* c, command* str) {
@@ -108,19 +111,22 @@ uint32_t tc_ttl(Cache* c, command* str) {
     cache_entry* ce = search(c, str->key);
     if(ce == NULL) {
         pthread_mutex_unlock(&c->lock);
+        puts("No entry ??");
         return 0;
     }
 
     if(ce->expires_at != 0 &&
     ce->expires_at <= (uint64_t)time(NULL)) {
         // lazy deletion
-        delete(ce, str->key);
+        delete(c, str->key);
         pthread_mutex_unlock(&c->lock);
+        puts("lazy deletion ?");
         return 0;
     }
 
     if (ce->expires_at == 0) {
        pthread_mutex_unlock(&c->lock);
+       puts("No expiry set ?");
        return 0;
     }
 

@@ -20,14 +20,14 @@ void destroy_cache(Cache* cache) {
 }
 
 
-uint8_t sdbm_hash(const char* key) {
+uint64_t sdbm_hash(const char* key) {
     
-    uint8_t hash = 0;
+    uint64_t hash = 0;
     int c;
 
     while ((c = *key++)) {
         // hash * 65599 + c
-        hash = c + (hash << 6) + (hash << 16) - hash; 
+        hash = (uint64_t)c + (hash << 6) + (hash << 16) - hash; 
     }
     return hash;
 }
@@ -37,7 +37,7 @@ bool insert(
     Cache* c, char* key, char* value, int value_len, int ttl
 ) {
     
-    int bucket_index = sdbm_hash(key) % TC_BUCKET_COUNT;
+    size_t bucket_index = sdbm_hash(key) % TC_BUCKET_COUNT;
     
     cache_entry* new_cache_entry = (cache_entry*)malloc(sizeof(cache_entry));
     if(new_cache_entry == NULL) {
@@ -88,18 +88,51 @@ cache_entry* search(Cache* c, char* key) {
     size_t bucket_index = sdbm_hash(key) % TC_BUCKET_COUNT;
 
     cache_entry* ce = c->buckets[bucket_index];
+    if(ce == NULL) {
+        return NULL;
+    }
+
     while (ce != NULL)
     {
         if(strcmp(key, ce->key) == 0) return ce;
         ce = ce->next;
     }
     
+    // should not reach here
     return NULL;
 }
 
-bool delete(cache_entry* ce, char* key) {
+bool delete(Cache* c, char* key) {
+    size_t bucket_index = sdbm_hash(key) % TC_BUCKET_COUNT;
+
+    cache_entry* prev_entry = NULL;
+    cache_entry* curr_entry = c->buckets[bucket_index];
+    if(curr_entry == NULL) {
+        return false;
+    }
+
+    while (curr_entry != NULL)
+    {
+        if(strcmp(curr_entry->key, key) == 0) {
+
+            // head node in bucket
+            if(prev_entry == NULL) {
+                c->buckets[bucket_index] = curr_entry->next;
+            }
+            // last or middle node in bucket
+            else {
+                prev_entry->next = curr_entry->next;
+            }
+
+            free(curr_entry->key);
+            free(curr_entry->value);
+            free(curr_entry);
+            return true;
+        }
+
+        prev_entry = curr_entry;
+        curr_entry = curr_entry->next;
+    }
     
-    ce = NULL;
-    key = "";
     return false;
 }

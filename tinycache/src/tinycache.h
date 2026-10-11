@@ -82,7 +82,7 @@ bool insert(Cache* c, char* key, char* value, int value_len, int ttl);
 // used by GET, TTL, EXPIRE, EXISTS
 cache_entry* search(Cache* ce, char* key);
 // used by DELETE
-bool delete(cache_entry* ce, char* key);
+bool delete(Cache* c, char* key);
 
 // policy implementation
 void set_policy(char* policy);
