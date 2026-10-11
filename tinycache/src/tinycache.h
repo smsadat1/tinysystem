@@ -26,11 +26,15 @@
 
 typedef struct command_t {
     char *key;
-    size_t key_len;
     char *value;
     size_t value_len;
     int64_t ttl;
 } command;
+
+typedef enum {
+    EVICTION_LRU,
+    EVICTION_LFU,
+} EvictionPolicy;
 
 typedef struct cache_entry_t {
     char *key;
@@ -38,14 +42,16 @@ typedef struct cache_entry_t {
     size_t value_len;
     bool expiry;
     uint64_t expires_at;
-    struct cache_entry *next;
+    struct cache_entry_t *next;
 } cache_entry;
 
 
 typedef struct cache_t {
     cache_entry** buckets;
+    size_t entries;
     size_t mem_used;
     size_t mem_max;
+    EvictionPolicy policy;
     pthread_mutex_t lock;
 } Cache;
 
