@@ -1,0 +1,91 @@
+# TinyLB
+**It's over for NGINX**
+- Python-powered — readable, hackable, no C++ compilation ritual.
+- Low setup overhead — clone, install dependencies, configure backends, run.
+- Load balancing — Round Robin and Least Connections.
+- TLS termination — HTTPS in, HTTP out.
+- HTTP/1.1 reverse proxy — accept requests, forward them, relay responses.
+- Minimal by design — no sprawling configuration system, no feature creep.
+
+
+
+## Setup
+
+**1. Create ceritificate**
+```bash
+openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 365 -nodes -subj "/CN=localhost" -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
+```
+
+**2. Start a test backend**
+```bash
+python -m http.server 8001 --bind 127.0.0.1
+```
+
+**3. Start TinyLB**
+```bash
+python -m tinylb
+```
+
+**4. Send HTTP requests**
+```bash
+curl -k -i https://localhost:8443/
+```
+
+The `-k` flag allows curl to accept the self-signed certificate for this local test.
+
+
+## Architecture
+```text
+                         HTTPS
+                    ┌────────────┐
+                    │   Client   │
+                    └─────┬──────┘
+                          │
+                          ▼
+              ┌────────────────────────┐
+              │         TinyLB         │
+              │                        │
+              │  1. TCP Listener       │
+              │  2. TLS Termination    │
+              │  3. HTTP/1.1 Parser    │
+              │  4. Load Balancer      │
+              │  5. Reverse Proxy      │
+              └────────────┬───────────┘
+                           │
+                     Plain HTTP
+                           │
+                ┌──────────┴──────────┐
+                ▼                     ▼
+        ┌──────────────┐      ┌──────────────┐
+        │   Backend A  │      │   Backend B  │
+        │   :9001      │      │   :9002      │
+        └──────────────┘      └──────────────┘
+```
+
+```text
+             HTTPS                      HTTP
+┌────────┐  TLS connection  ┌──────────────┐  TCP/HTTP  ┌─────────┐
+│ Client │ ───────────────> │ Python Proxy │ ─────────> │ Backend │
+│        │ <─────────────── │              │ <───────── │         │
+└────────┘                  └──────────────┘            └─────────┘
+             HTTPS                      HTTP
+
+                         TLS terminates here ↑
+```
+
+
+## TinyLB specifications
+
+| Component             | Decision                          |
+|-----------------------|-----------------------------------|
+| Language              | Python                            |
+| Network layer         | Layer 7                           |
+| HTTP protocol         | HTTP/1.1 only                     |
+| Proxy type            | Reverse proxy                     |
+| TLS                   | Terminate client-facing TLS       |
+| Load balancing        | Round Robin, Least Connections    |
+| Backend discovery     | Static configuration              |
+| Backend protocol      | Plain HTTP                        |
+| Concurrency           | `asyncio`                         |
+| Configuration         | YAML or TOML                      |
+| Deployment            | Local Linux environment initially |
