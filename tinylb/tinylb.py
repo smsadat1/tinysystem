@@ -6,7 +6,7 @@ from .config import (
     LISTEN_HOST, LISTEN_PORT,
     MAX_BODY_SIZE, MAX_HEADER_SIZE,
 )
-from .proxy import handle_client
+from .proxy import proxy
 
 
 async def main():
@@ -22,7 +22,7 @@ async def main():
 
     # asyncio handles the TLS handshake and encryption.
     server = await asyncio.start_server(
-        handle_client,
+        proxy,
         LISTEN_HOST,
         LISTEN_PORT,
         ssl=tls_context,
