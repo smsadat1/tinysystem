@@ -1,6 +1,6 @@
 # parse and validate headers 
 
-from .config import MAX_HEADER_SIZE, HOP_BY_HOP
+from config import MAX_HEADER_SIZE, HOP_BY_HOP
 
 
 def get_headers(headers, name):

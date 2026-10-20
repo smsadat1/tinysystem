@@ -2,10 +2,10 @@ import asyncio
 from asyncio import StreamReader, StreamWriter
 import ssl
 
-from .config import (
+from config import (
     BACKEND_HOST, BACKEND_PORT, MAX_BODY_SIZE
 )
-from .validate import  (
+from validate import  (
     clean_header, read_headers, write_headers, get_headers
 )
 
