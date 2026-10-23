@@ -2,7 +2,7 @@
 
 #include "tinycache.h"
 
-void parse(Cache* cache, char commandbuf[]) {
+void parse(int conn_fd, Cache* cache, char commandbuf[]) {
 
     // replace newline with null terminator
     char* newline = strchr(commandbuf, '\n');
@@ -22,9 +22,9 @@ void parse(Cache* cache, char commandbuf[]) {
         c.value_len = strlen(c.value);
 
         if(tc_set(cache, &c)) 
-            puts("OK");
+            send_result(conn_fd, "OK", 2);
         else 
-            puts("FAILED");
+            send_result(conn_fd, "FAILED", 6);
     } 
     else if(strcmp(command_type, "GET") == 0) {
 
@@ -35,9 +35,9 @@ void parse(Cache* cache, char commandbuf[]) {
 
         char* value = tc_get(cache, &c);
         if (value == NULL) {
-            puts("(nil)");
+            send_result(conn_fd, "(nil)", 5);
         } else {
-            printf("%s\n", value);
+            send_result(conn_fd, value, sizeof(value));
             free(value);
         }
     } 
@@ -50,9 +50,9 @@ void parse(Cache* cache, char commandbuf[]) {
         };
 
         if(tc_delete(cache, &c)) 
-            puts("OK");
+            send_result(conn_fd, "OK", 2);
         else 
-            puts("FAILED");
+            send_result(conn_fd, "FAILED", 6);
     } 
     else if(strcmp(command_type, "EXPIRE") == 0) {
         
@@ -63,9 +63,9 @@ void parse(Cache* cache, char commandbuf[]) {
         };
 
         if(tc_expire(cache, &c)) 
-            puts("OK");
+            send_result(conn_fd, "OK", 2);
         else 
-            puts("FAILED");
+            send_result(conn_fd, "FAILED", 6);
     }
     else if(strcmp(command_type, "EXIST") == 0) {
         
@@ -76,9 +76,9 @@ void parse(Cache* cache, char commandbuf[]) {
         };
 
         if(tc_exists(cache, &c)) 
-            puts("EXISTS");
+            send_result(conn_fd, "EXISTS", 6);
         else 
-            puts("DOES NOT EXIST");
+            send_result(conn_fd, "EXISTS", 14);
     }
     else if(strcmp(command_type, "TTL") == 0) {
         
@@ -88,16 +88,18 @@ void parse(Cache* cache, char commandbuf[]) {
             .ttl = -1,
         };
 
-        printf("%u\n", tc_ttl(cache, &c));
+        uint32_t ttl_amount = tc_ttl(cache, &c);
+        send_result(conn_fd, ttl_amount, sizeof(ttl_amount));
     }
     else if(strcmp(command_type, "PING") == 0 || strcmp(command_type, "PING\n") == 0 ) {
-        puts("PONG");
+        send_result(conn_fd, "PONG", 4);
     }
     else if(strcmp(command_type, "STAT") == 0 || strcmp(command_type, "STAT\n") == 0 ) {
-        tc_stat(cache);
+        tc_stat(conn_fd, cache);
     } 
     else {
-        printf("Unknown command: %s\n", commandbuf);
+        // unknown command
+        send_result(conn_fd, "", 0);
     }
 }
 
@@ -113,7 +115,7 @@ void parse_command(Cache* cache, int conn_fd) {
         if(n > 0) {
             command_buff[n] = '\0'; // null terminate each command
             printf("%s", command_buff);
-            parse(cache, command_buff);
+            parse(conn_fd, cache, command_buff);
         }
         else if (n == 0)
         {

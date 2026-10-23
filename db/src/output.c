@@ -57,3 +57,10 @@ void tc_log(char* mesg, TC_LOG_LEVEL level) {
         break;
     }
 }
+
+void send_result(int conn_fd, void* result, int resultlen) {
+    
+    if (write(conn_fd, result, resultlen) == -1) {
+        tc_log("Write failed", TC_ERROR);
+    }
+}

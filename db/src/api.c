@@ -146,18 +146,27 @@ uint32_t tc_ttl(Cache* c, command* str) {
     return remaining;
 }
 
-void tc_stat(Cache* c) {
+void tc_stat(int conn_fd, Cache* c) {
     pthread_mutex_lock(&c->lock);
     
-    printf("Total entries: %lu\n", c->entries);
-    printf("Memory used (bytes): %lu/%lu\n", c->mem_used, c->mem_max);
+    // Total entries: c->entries
+    send_result(conn_fd, "Total entries: ", 15);
+    send_result(conn_fd, c->entries, sizeof(c->entries));
+    send_result(conn_fd, '\n', 1);
+
+    // Memory used (bytes): c->mem_used/c->mem_max
+    send_result(conn_fd, "Memory used (bytes): ", 22);
+    send_result(conn_fd, c->mem_used, sizeof(c->mem_used));
+    send_result(conn_fd, '/', 1);
+    send_result(conn_fd, c->mem_max, sizeof(c->mem_max));
+    send_result(conn_fd, '\n', 1);
 
     if(c->policy == EVICTION_LRU) {
-        puts("Eviction policy: LRU");
+        send_result(conn_fd, "Eviction policy: LRU\n", 21);
     } 
     else if (c->policy == EVICTION_LFU)
     {
-        puts("Eviction policy: LFU");
+        send_result(conn_fd, "Eviction policy: LFU\n", 21);
     }
 
     pthread_mutex_unlock(&c->lock);

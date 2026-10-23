@@ -95,6 +95,8 @@ typedef struct WorkerConfig_t {
 void* worker(void* arg);
 void tc_server(Cache* cache);
 
+// output to client
+void send_result(int conn_fd, void* result, int resultlen);
 // logging
 void tc_log(char* mesg, TC_LOG_LEVEL level);
 
@@ -110,7 +112,7 @@ bool tc_delete(Cache* c, command* str);
 bool tc_exists(Cache* c, command* str);
 bool tc_expire(Cache* c, command* str);
 uint32_t tc_ttl(Cache* c, command* str);
-void tc_stat(Cache* c);
+void tc_stat(int conn_fd, Cache* c);
 
 // LFU
 cache_entry* find_lfu_victim(Cache* c);
