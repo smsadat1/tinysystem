@@ -2,65 +2,71 @@
 
 #include "tinycache.h"
 
-void tc_log(char* mesg, TC_LOG_LEVEL level) {
+void tc_log(TC_LOG_LEVEL level, char* mesg, ...) {
     
-    static char timestr[200];
-    static time_t t;
-    static struct tm* tmp;
+    char timestr[200];
+    time_t t;
+    struct tm tm_info;
 
     t = time(NULL);
-    tmp = localtime(&t);
-    if(tmp == NULL) {
+    if(localtime_r(&t, &tm_info) == NULL) {
         perror("localtime");
         exit(EXIT_FAILURE);
     }
 
-    if (strftime(timestr, sizeof(timestr), "%d/%m/%Y %H:%M:%S", tmp) == 0) {
+    if (strftime(timestr, sizeof(timestr), "%d/%m/%Y %H:%M:%S", &tm_info) == 0) {
         fprintf(stderr, "strftime returned 0");
         exit(EXIT_FAILURE);
     }
 
+    va_list args;
+    va_start(args, mesg);
+
+    flockfile(stdout);
+
     switch (level)
     {
     case TC_INFO:
-        printf("[INF][%s%s%s] %s\n", 
-            TC_LOG_GREY, timestr, TC_LOG_COLOR_TERMINATE,
-            mesg
+        printf("[INF][%s%s%s] ", 
+            TC_LOG_GREY, timestr, TC_LOG_COLOR_TERMINATE
         );    
         break;
 
     case TC_WARNING:
-        printf("[%sWRN%s][%s%s%s] %s%s%s\n", 
+        printf("[%sWRN%s][%s%s%s] %s", 
             TC_LOG_YELLOW, TC_LOG_COLOR_TERMINATE, 
-            TC_LOG_GREY, timestr, TC_LOG_COLOR_TERMINATE, 
-            TC_LOG_YELLOW, mesg, TC_LOG_COLOR_TERMINATE
+            TC_LOG_GREY, timestr, TC_LOG_COLOR_TERMINATE, TC_LOG_YELLOW
         );
         break;
 
     case TC_ERROR:
-        printf("[%sERR%s][%s%s%s] %s%s%s\n", 
+        printf("[%sERR%s][%s%s%s] %s", 
             TC_LOG_RED, TC_LOG_COLOR_TERMINATE, 
-            TC_LOG_GREY, timestr, TC_LOG_COLOR_TERMINATE, 
-            TC_LOG_RED, mesg, TC_LOG_COLOR_TERMINATE
+            TC_LOG_GREY, timestr, TC_LOG_COLOR_TERMINATE, TC_LOG_RED
         );
         break;
 
     case TC_FATAL:
-        printf("[%sFTL%s][%s%s%s] %s%s%s\n", 
+        printf("[%sFTL%s][%s%s%s] %s", 
             TC_LOG_DEEP_RED, TC_LOG_COLOR_TERMINATE,
-            TC_LOG_GREY, timestr, TC_LOG_COLOR_TERMINATE, 
-            TC_LOG_DEEP_RED, mesg, TC_LOG_COLOR_TERMINATE
+            TC_LOG_GREY, timestr, TC_LOG_COLOR_TERMINATE, TC_LOG_DEEP_RED
         );
         exit(-1);    
 
     default:
         break;
     }
+
+    vprintf(mesg, args);
+    printf("%s\n", TC_LOG_COLOR_TERMINATE); // terminate set color
+    funlockfile(stdout);
+
+    va_end(args);
 }
 
 void send_result(int conn_fd, void* result, int resultlen) {
     
     if (write(conn_fd, result, resultlen) == -1) {
-        tc_log("Write failed", TC_ERROR);
+        tc_log(TC_ERROR, "Write failed");
     }
 }
