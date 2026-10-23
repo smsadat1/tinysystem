@@ -14,12 +14,19 @@ void parse(int conn_fd, Cache* cache, char commandbuf[]) {
 
     if(strcmp(command_type, "SET") == 0) {
         
+        char* key = strtok(NULL, " ");
+        char* value = strtok(NULL, " ");
+
         command c = {
-            .key = strtok(NULL, " "),
-            .value = strtok(NULL, ""),
+            .key = key,
+            .value = value,
+            .value_len = value ? strlen(value) : 0,
             .ttl = 300,
         };
-        c.value_len = strlen(c.value);
+
+        if (c.key == NULL || c.value == NULL) {
+            send_result(conn_fd, "FAILED", 6);
+        }
 
         if(tc_set(cache, &c)) 
             send_result(conn_fd, "OK", 2);
@@ -33,11 +40,17 @@ void parse(int conn_fd, Cache* cache, char commandbuf[]) {
            .value = "", .value_len = 0, .ttl = -1,
         };
 
-        char* value = tc_get(cache, &c);
+        int value_len = 0;
+        void* value = tc_get(cache, &c, &value_len);
         if (value == NULL) {
             send_result(conn_fd, "(nil)", 5);
         } else {
-            send_result(conn_fd, value, sizeof(value));
+            printf("Value length: %d\n", value_len);
+            printf("Value bytes: ");
+            fwrite(value, 1, value_len, stdout);
+            printf("\n");
+
+            send_result(conn_fd, value, value_len);
             free(value);
         }
     } 
@@ -105,12 +118,13 @@ void parse(int conn_fd, Cache* cache, char commandbuf[]) {
 
 void parse_command(Cache* cache, int conn_fd) {
 
-    char command_buff[MAX] = {0};
-    int n;
+    // extra 1 bytes for newline delimiter
+    char command_buff[TC_MAX_READ_BYTES+1] = {0};
+    ssize_t n;
 
     while (true)
     {
-        n = read(conn_fd, command_buff, sizeof(command_buff));
+        n = read(conn_fd, command_buff, TC_MAX_READ_BYTES);
         
         if(n > 0) {
             command_buff[n] = '\0'; // null terminate each command
