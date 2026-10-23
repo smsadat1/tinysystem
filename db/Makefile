@@ -1,6 +1,15 @@
 CC = gcc
-CFLAGS = -Wall -Wextra
-LDFLAGS =
+CFLAGS = -std=c17 \
+    -Wall -Wextra -Wpedantic -Wshadow \
+    -Wconversion -Wformat=2 \
+    -fanalyzer \
+    -fsanitize=address,undefined \
+    -fno-omit-frame-pointer \
+    -g -O1 \
+    -pthread \
+    -D_POSIX_C_SOURCE=200809L
+
+LDFLAGS = -fsanitize=address,undefined -pthread
 
 TARGET_EXEC = tinycache
 
