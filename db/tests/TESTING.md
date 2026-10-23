@@ -64,16 +64,16 @@ You've defined `mem_used` as the total size of **value payloads only**, excludin
 
 Test that accounting stays correct.
 
-| Test | Action | Expected result |
-|---|---|---|
-| Insert | Insert a 10-byte value | Usage increases by 10 |
-| Update | Replace it with a 20-byte value | Usage increases by a net 10 |
-| Delete | Delete the key | Usage decreases by 20 |
-| Expire | Let the key expire and trigger cleanup | Usage decreases exactly once |
-| Evict | Force an eviction | Usage decreases by the victim's value size |
-| Empty value | Insert an empty value, if supported | Usage remains consistent |
-| Repeated update | Update the same key 1,000 times | No accounting drift |
-| Oversized value | Insert a value larger than the allowed maximum | Rejected without corrupting the cache |
+| Test            | Action                                          | Expected result                           |
+|-----------------|-------------------------------------------------|-------------------------------------------|
+| Insert          | Insert a 10-byte value                          | Usage increases by 10                     |
+| Update          | Replace it with a 20-byte value                 | Usage increases by a net 10               |
+| Delete          | Delete the key                                  | Usage decreases by 20                     |
+| Expire          | Let the key expire and trigger cleanup          | Usage decreases exactly once              |
+| Evict           | Force an eviction                               | Usage decreases by the victim's value size|
+| Empty value     | Insert an empty value, if supported             | Usage remains consistent                  |
+| Repeated update | Update the same key 1,000 times                 | No accounting drift                       |
+| Oversized value | Insert a value larger than the allowed maximum  | Rejected without corrupting the cache     |
 
 For example:
 
