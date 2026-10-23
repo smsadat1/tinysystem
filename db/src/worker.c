@@ -26,12 +26,12 @@ void* worker(void* arg) {
     WorkerConfig* config = (WorkerConfig*)arg;
 
     if(config->policy == EVICTION_LRU) {
-        puts("Memory eviction policy: LRU");
+        tc_log(TC_INFO, "Memory eviction policy: LRU");
     } 
     else if (config->policy == EVICTION_LFU) {
-        puts("Memory eviction policy: LFU");
+        tc_log(TC_INFO, "Memory eviction policy: LFU");
     }
-    printf("Max set memory(mb): %d\n", config->max_mem_mb);
+    tc_log(TC_INFO, "Max set memory(mb): %d\n", config->max_mem_mb);
 
     while (true)
     {
