@@ -4,6 +4,13 @@
 
 
 bool tc_set(Cache* c, command* str) {
+    
+    if (c == NULL || str == NULL ||
+        str->key == NULL ||
+        (str->value == NULL && str->value_len > 0)) {
+        return false;
+    }
+    
     return insert(
         c,
         str->key,
@@ -12,7 +19,7 @@ bool tc_set(Cache* c, command* str) {
     );
 }
 
-void* tc_get(Cache* c, command* str) {
+void* tc_get(Cache* c, command* str, int* value_len) {
     
     pthread_mutex_lock(&c->lock);
 
@@ -38,6 +45,7 @@ void* tc_get(Cache* c, command* str) {
 
     if (ce->value_len > 0) {
         memcpy(value, ce->value, ce->value_len);
+        *value_len = ce->value_len;
     }
 
     // update LRU

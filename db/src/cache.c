@@ -44,9 +44,14 @@ uint64_t sdbm_hash(const char* key) {
 
 
 bool insert(
-    Cache* c, char* key, char* value, int value_len, int ttl
+    Cache* c, char* key, char* value, size_t value_len, int ttl
 ) {
     
+    if (c == NULL || key == NULL ||
+       (value == NULL && value_len > 0)) {
+       return false;
+    }
+
     size_t bucket_index = sdbm_hash(key) % TC_BUCKET_COUNT;
     // printf("bucket idx: %lu\n", bucket_index);
     
@@ -63,13 +68,17 @@ bool insert(
     }
 
     // assign value
-    new_cache_entry->value = malloc(value_len);
-    if(new_cache_entry->value == NULL) {
-        free(new_cache_entry->key);
-        free(new_cache_entry);
-        return false;
+    new_cache_entry->value = NULL;
+    if(value_len > 0) {
+        new_cache_entry->value = malloc(value_len);
+
+        if(new_cache_entry->value == NULL) {
+            free(new_cache_entry->key);
+            free(new_cache_entry);
+            return false;
+        }
+        memcpy(new_cache_entry->value, value, value_len);
     }
-    memcpy(new_cache_entry->value, value, value_len);
     new_cache_entry->value_len = value_len;
 
     // assign expiry
