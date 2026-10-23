@@ -1,6 +1,7 @@
 #ifndef TINYCACHE_H
 #define TINYCACHE_H
 
+#include <stdarg.h>
 #include <pthread.h>
 #include <stdbool.h>
 #include <stdio.h> 
@@ -14,12 +15,12 @@
 #include <sys/types.h> 
 #include <unistd.h>
 
-#define MAX 80 
+#define TC_MAX_READ_BYTES 80 
 #define TC_DEFAULT_MAX_MEM_MB 124
 #define TC_MAX_MEMORY_MB 128
 #define TC_MAX_ALLOWED_CONNECTION 80
 
-#define TC_PORT "9736"   // opposite of redis
+#define TC_PORT 9736   // opposite of redis
 #define TC_DEFAULT_TTL 300
 #define TC_INTERVAL_SEC 5
 #define TC_NO_EXPIRY 0
@@ -98,8 +99,7 @@ void tc_server(Cache* cache);
 // output to client
 void send_result(int conn_fd, void* result, int resultlen);
 // logging
-void tc_log(char* mesg, TC_LOG_LEVEL level);
-
+void tc_log(TC_LOG_LEVEL level, char* mesg, ...);
 
 // command parsing from server
 void parse_command(Cache* cache, int conn_fd);
@@ -107,7 +107,7 @@ void parse_command(Cache* cache, int conn_fd);
 
 // cache management api
 bool tc_set(Cache* c, command* str);
-void* tc_get(Cache* c, command* str);
+void* tc_get(Cache* c, command* str, int* value_len);
 bool tc_delete(Cache* c, command* str);
 bool tc_exists(Cache* c, command* str);
 bool tc_expire(Cache* c, command* str);
@@ -129,7 +129,7 @@ void init_cache(Cache* cache);
 void destroy_cache(Cache* cache);
 
 // used by SET
-bool insert(Cache* c, char* key, char* value, int value_len, int ttl);
+bool insert(Cache* c, char* key, char* value, size_t value_len, int ttl);
 // used by GET, TTL, EXPIRE, EXISTS
 cache_entry* search(Cache* ce, char* key);
 // used by DELETE
