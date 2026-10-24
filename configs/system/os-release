@@ -1,0 +1,8 @@
+PRETTY_NAME="TinySystem 0.1.0"
+NAME="TinySystem"
+VERSION_ID="0.1.0"
+VERSION="0.1.0"
+VERSION_CODENAME=tiny
+ID=tinysystem
+ID_LIKE=Linux
+

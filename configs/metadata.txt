@@ -1,0 +1,12 @@
+System: TinySystem
+Version: 0.1.0
+Base distribution: Ubuntu
+Architecture: x86_64
+Kernel source: Linux 7.3.0
+Kernel configuration: kernel/kernel.config
+Private DNS namespace: home.arpa
+Network: NetworkManager + dnsmasq
+Reverse proxy: Nginx
+HTTP server: Custom
+Database: Custom
+Storage: Custom
