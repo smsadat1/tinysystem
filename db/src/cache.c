@@ -30,21 +30,39 @@ void destroy_cache(Cache* cache) {
 }
 
 
-uint64_t sdbm_hash(const char* key) {
+bool update(
+    Cache* c, cache_entry* ce, void* value, size_t value_len
+) {
+    void* new_value = NULL;
     
-    uint64_t hash = 0;
-    int c;
-
-    while ((c = *key++)) {
-        // hash * 65599 + c
-        hash = (uint64_t)c + (hash << 6) + (hash << 16) - hash; 
+    if(value_len > 0) {
+        new_value = malloc(value_len);
+        if(new_value == NULL) {
+            return false;
+        }
+        memcpy(new_value, value, value_len);
     }
-    return hash;
+
+    pthread_mutex_unlock(&c->lock);
+
+    // update to new value length
+    c->mem_used -= ce->value_len;
+    c->mem_used += value_len;
+
+    // delete older value then add new value
+    free(ce->value);
+    ce->value = new_value;
+    ce->value_len = value_len;
+
+    pthread_mutex_unlock(&c->lock);
+
+    lru_update_lock(c, ce);
+
+    return true;
 }
 
-
 bool insert(
-    Cache* c, char* key, char* value, size_t value_len, int ttl
+    Cache* c, char* key, void* value, size_t value_len, int ttl
 ) {
     
     if (c == NULL || key == NULL ||
@@ -52,8 +70,13 @@ bool insert(
        return false;
     }
 
+    cache_entry* ce = search(c, key);
+    if(ce != NULL) {
+        // If key already exists, overwrite older value and return
+        return update(c, ce, value, value_len);
+    }
+
     size_t bucket_index = sdbm_hash(key) % TC_BUCKET_COUNT;
-    // printf("bucket idx: %lu\n", bucket_index);
     
     cache_entry* new_cache_entry = (cache_entry*)malloc(sizeof(cache_entry));
     if(new_cache_entry == NULL) {
@@ -87,7 +110,7 @@ bool insert(
         new_cache_entry->expires_at = 0;
     } 
     else {
-        new_cache_entry->expires_at = time(NULL) + ttl;
+        new_cache_entry->expires_at = (uint64_t)(time(NULL) + ttl);
         new_cache_entry->expiry = true;
     }
 
@@ -121,7 +144,9 @@ cache_entry* search(Cache* c, char* key) {
 
     while (ce != NULL)
     {
-        if(strcmp(key, ce->key) == 0) return ce;
+        if(strcmp(key, ce->key) == 0) 
+            return ce;
+            
         ce = ce->next;
     }
     
