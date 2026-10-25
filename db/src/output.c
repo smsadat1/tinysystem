@@ -26,6 +26,15 @@ void tc_log(TC_LOG_LEVEL level, char* mesg, ...) {
 
     switch (level)
     {
+#ifdef TS_DB_DBG
+    case TC_DEBUG:
+        printf("[%sDBG%s][%s%s%s] ", 
+            TC_LOG_GREEN, TC_LOG_COLOR_TERMINATE,
+            TC_LOG_GREY, timestr, TC_LOG_COLOR_TERMINATE
+        );    
+        break;
+        
+#endif
     case TC_INFO:
         printf("[INF][%s%s%s] ", 
             TC_LOG_GREY, timestr, TC_LOG_COLOR_TERMINATE
@@ -64,7 +73,7 @@ void tc_log(TC_LOG_LEVEL level, char* mesg, ...) {
     va_end(args);
 }
 
-void send_result(int conn_fd, void* result, int resultlen) {
+void send_result(int conn_fd, void* result, size_t resultlen) {
     
     if (write(conn_fd, result, resultlen) == -1) {
         tc_log(TC_ERROR, "Write failed");
