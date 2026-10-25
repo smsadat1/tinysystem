@@ -1,16 +1,16 @@
 CC = gcc
 
-TARGET_EXEC = tinycache
+TARGET_EXEC = db
 
 BUILD_DIR = build
+BUILD_TYPE ?= debug
 SRC_DIR = src
 
 SRCS = $(shell find $(SRC_DIR) -name '*.c')
 
 # common flags
 CFLAGS = -std=c17 \
-    -Wall -Wextra -Wpedantic \
-    -Wshadow -Werror -Wconversion -Wformat=2 \
+    -Wall -Wextra -Wpedantic -Wshadow -Werror -Wconversion -Wformat=2 \
     -pthread \
     -D_POSIX_C_SOURCE=200809L
 
@@ -27,36 +27,32 @@ DEBUG_LDFLAGS = -fsanitize=address,undefined
 
 # race test flags
 RACE_TEST_CFLAGS = -O1 -g \
-    -fsanitize=thread \
+    -fsanitize=thread -fno-pie \
     -DTS_DB_DBG
+RACE_TEST_LDFLAGS = -fsanitize=thread -no-pie
 
 # release flags
 RELEASE_CFLAGS = -O2 -DNDEBUG
-RACE_TEST_LDFLAGS = -fsanitize=thread
 
 
 .PHONY: all release debug race clean
 all: release
 
-release: BUILD_TYPE = release
-release: EXTRA_CFLAGS = $(RELEASE_CFLAGS)
-release: EXTRA_LDFLAGS = $(RELEASE_LDFLAGS)
-release: build
+release: $(BUILD_DIR)/release/$(TARGET_EXEC)
+debug:  $(BUILD_DIR)/debug/$(TARGET_EXEC)
+race:   $(BUILD_DIR)/race/$(TARGET_EXEC)
 
-debug: BUILD_TYPE = debug
-debug: EXTRA_CFLAGS = $(DEBUG_CFLAGS)
-debug: EXTRA_LDFLAGS = $(DEBUG_LDFLAGS)
-debug: build
+$(BUILD_DIR)/release/$(TARGET_EXEC): EXTRA_CFLAGS = $(RELEASE_CFLAGS)
+$(BUILD_DIR)/release/$(TARGET_EXEC): EXTRA_LDFLAGS = $(RELEASE_LDFLAGS)
 
-race: BUILD_TYPE = race
-race: EXTRA_CFLAGS = $(RACE_CFLAGS)
-race: EXTRA_LDFLAGS = $(RACE_LDFLAGS)
-race: build
+$(BUILD_DIR)/debug/$(TARGET_EXEC): EXTRA_CFLAGS = $(DEBUG_CFLAGS)
+$(BUILD_DIR)/debug/$(TARGET_EXEC): EXTRA_LDFLAGS = $(DEBUG_LDFLAGS)
 
-build: $(BUILD_DIR)/$(BUILD_TYPE)/$(TARGET_EXEC)
+$(BUILD_DIR)/race/$(TARGET_EXEC): EXTRA_CFLAGS = $(RACE_TEST_CFLAGS)
+$(BUILD_DIR)/race/$(TARGET_EXEC): EXTRA_LDFLAGS = $(RACE_TEST_LDFLAGS)
 
-$(BUILD_DIR)/$(BUILD_TYPE)/$(TARGET_EXEC): $(SRCS)
-	@mkdir -p $(BUILD_DIR)/$(BUILD_TYPE)
+$(BUILD_DIR)/%/$(TARGET_EXEC): $(SRCS)
+	@mkdir -p $(@D)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(EXTRA_CFLAGS) $(SRCS) \
 	    -o $@ $(LDFLAGS) $(EXTRA_LDFLAGS)
 
