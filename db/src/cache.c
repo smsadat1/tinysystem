@@ -4,7 +4,6 @@
 
 void init_cache(Cache* cache) {
 
-    // any number of buckets
     cache->buckets = (cache_entry**)calloc(TC_BUCKET_COUNT, sizeof(cache_entry*));
     if (cache->buckets == NULL) {
        perror("Failed to allocate cache buckets");
@@ -14,6 +13,8 @@ void init_cache(Cache* cache) {
     cache->entries = 0;
     cache->mem_used = 0;
     cache->mem_max = TC_MAX_MEMORY_MB * 1024ULL * 1024ULL;
+    cache->lru_head = NULL;
+    cache->lru_tail = NULL;
 
     if (pthread_mutex_init(&cache->lock, NULL) != 0) {
         free(cache->buckets);
@@ -22,11 +23,30 @@ void init_cache(Cache* cache) {
     }
 }
 
-// NULL whole cache before exit
+// Traverse and NULL whole cache before exit
 void destroy_cache(Cache* cache) {
-    free(cache->buckets);
+    
+    if(cache == NULL)
+        return;
+
+    for(size_t i = 0; i < TC_BUCKET_COUNT; i++) {
+        cache_entry* curr_ce = cache->buckets[i];
+
+        while (curr_ce != NULL)
+        {
+            cache_entry* next_ce = curr_ce->next;
+            free(curr_ce->key);
+            free(curr_ce->value);
+            free(curr_ce);
+            curr_ce = next_ce;
+        }
+        cache->buckets[i] = NULL;
+    } 
+
     cache->mem_used = 0;
     cache->mem_max = 0;
+    free(cache->buckets);
+    cache->buckets = NULL;
 }
 
 
