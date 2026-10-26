@@ -31,12 +31,13 @@ void* worker(void* arg) {
     else if (config->policy == EVICTION_LFU) {
         tc_log(TC_INFO, "Memory eviction policy: LFU");
     }
-    tc_log(TC_INFO, "Max set memory(mb): %d\n", config->max_mem_mb);
+    tc_log(TC_INFO, "Max set memory(mb): %d", config->max_mem_mb);
 
     while (true)
     {
         sleep(TC_INTERVAL_SEC);
-        
+        tc_log(TC_DEBUG, "Eviction worker checking memory");
+
         // thread safe eviction
         pthread_mutex_lock(&config->cache->lock);
 
