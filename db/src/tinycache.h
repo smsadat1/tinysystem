@@ -1,6 +1,7 @@
 #ifndef TINYCACHE_H
 #define TINYCACHE_H
 
+#include <inttypes.h>
 #include <stdarg.h>
 #include <pthread.h>
 #include <stdbool.h>
@@ -15,16 +16,24 @@
 #include <sys/types.h> 
 #include <unistd.h>
 
-#define TC_MAX_READ_BYTES 80 
+#define TC_MAX_READ_BYTES 777 // max_command_len + whitespace + max_key_len + whitespace + max_value_len
+#define TC_MAX_COMMAND_LEN 7
+#define TC_MAX_KEY_LEN 256
+#define TC_MAX_VALUE_LEN 512 
 #define TC_DEFAULT_MAX_MEM_MB 124
 #define TC_MAX_MEMORY_MB 128
 #define TC_MAX_ALLOWED_CONNECTION 80
 
+#define TC_SERVER_ERROR -67
 #define TC_PORT 9736   // opposite of redis
 #define TC_DEFAULT_TTL 300
 #define TC_INTERVAL_SEC 5
 #define TC_NO_EXPIRY 0
 #define TC_BUCKET_COUNT INT16_MAX
+#define TC_TTL_EXPIRED -1
+#define TC_TTL_NOT_EXIST -2
+#define TC_EXPIRY_ILLEGAL -3
+#define TC_NEWLINE 0x0A
 
 #define TC_LOG_GREY "\033[38;5;244m"
 #define TC_LOG_GREEN "\033[38;5;46m"
@@ -33,12 +42,11 @@
 #define TC_LOG_DEEP_RED "\033[1;31m"
 #define TC_LOG_COLOR_TERMINATE "\033[0m"
 
-
 typedef struct command_t {
     char *key;
     char *value;
     size_t value_len;
-    int64_t ttl;
+    uint64_t ttl;
 } command;
 
 typedef enum {
@@ -47,6 +55,7 @@ typedef enum {
 } EvictionPolicy;
 
 typedef enum {
+    TC_DEBUG,
     TC_INFO,
     TC_WARNING,
     TC_ERROR,
@@ -94,10 +103,10 @@ typedef struct WorkerConfig_t {
 
 
 void* worker(void* arg);
-void tc_server(Cache* cache);
+int tc_server(Cache* cache);
 
 // output to client
-void send_result(int conn_fd, void* result, int resultlen);
+void send_result(int conn_fd, void* result, size_t resultlen);
 // logging
 void tc_log(TC_LOG_LEVEL level, char* mesg, ...);
 
@@ -107,11 +116,11 @@ void parse_command(Cache* cache, int conn_fd);
 
 // cache management api
 bool tc_set(Cache* c, command* str);
-void* tc_get(Cache* c, command* str, int* value_len);
+void* tc_get(Cache* c, command* str, size_t* value_len);
 bool tc_delete(Cache* c, command* str);
 bool tc_exists(Cache* c, command* str);
 bool tc_expire(Cache* c, command* str);
-uint32_t tc_ttl(Cache* c, command* str);
+int32_t tc_ttl(Cache* c, command* str);
 void tc_stat(int conn_fd, Cache* c);
 
 // LFU
@@ -128,8 +137,11 @@ void lru_remove_lock(Cache* c, cache_entry* ce);
 void init_cache(Cache* cache);
 void destroy_cache(Cache* cache);
 
+// hash function
+uint64_t sdbm_hash(const char* key);
+
 // used by SET
-bool insert(Cache* c, char* key, char* value, size_t value_len, int ttl);
+bool insert(Cache* c, char* key, void* value, size_t value_len, int ttl);
 // used by GET, TTL, EXPIRE, EXISTS
 cache_entry* search(Cache* ce, char* key);
 // used by DELETE
