@@ -19,7 +19,7 @@ bool tc_set(Cache* c, command* str) {
     );
 }
 
-void* tc_get(Cache* c, command* str, int* value_len) {
+void* tc_get(Cache* c, command* str, size_t* value_len) {
     
     pthread_mutex_lock(&c->lock);
 
@@ -73,12 +73,16 @@ bool tc_exists(Cache* c, command* str) {
 
     cache_entry* ce = search(c, str->key);
     if(ce == NULL) {
+        tc_log(TC_DEBUG, "Key not found: Already deleted");
         pthread_mutex_unlock(&c->lock);
         return false;
     }
 
-    if(ce->expires_at != 0 &&
-    ce->expires_at <= (uint64_t)time(NULL)) {
+    // If there's expiry then check remainin time to decide
+    if(ce->expiry && ce->expires_at <= (uint64_t)time(NULL)) {
+        
+        tc_log(TC_DEBUG, "Key found: Attempting lazy deletion");
+        
         // lazy deletion
         delete(c, str->key);
         pthread_mutex_unlock(&c->lock);
@@ -112,28 +116,38 @@ bool tc_expire(Cache* c, command* str) {
 
     // can set expiry if already not set 
     if (!ce->expiry) {
-        ce->expires_at = time(NULL) + str->ttl;
+        ce->expires_at = (uint64_t)time(NULL) + str->ttl;
         ce->expiry = true;
         pthread_mutex_unlock(&c->lock);
         return true;
     }
 
+    // set new expiry
     if (ce->expiry) {
+        
+        // check if already expired
+        if(ce->expires_at < (uint64_t)time(NULL)) {
+            pthread_mutex_unlock(&c->lock);
+            return false;
+        }
+        
+        // increment over previous expiry
+        ce->expires_at += str->ttl;
         pthread_mutex_unlock(&c->lock);
-        return false;
+        return true;
     }
 
     // should not reach here
     return false;
 }
 
-uint32_t tc_ttl(Cache* c, command* str) {
+int32_t tc_ttl(Cache* c, command* str) {
     pthread_mutex_lock(&c->lock);
 
     cache_entry* ce = search(c, str->key);
     if(ce == NULL) {
         pthread_mutex_unlock(&c->lock);
-        return 0;
+        return TC_TTL_NOT_EXIST;
     }
 
     if(ce->expires_at != 0 &&
@@ -141,40 +155,47 @@ uint32_t tc_ttl(Cache* c, command* str) {
         // lazy deletion
         delete(c, str->key);
         pthread_mutex_unlock(&c->lock);
-        return 0;
+        return TC_TTL_EXPIRED;
     }
 
     if (ce->expires_at == 0) {
        pthread_mutex_unlock(&c->lock);
-       return 0;
+       return TC_TTL_EXPIRED;
     }
 
-    uint32_t remaining = (uint32_t)(ce->expires_at - (uint64_t)time(NULL));
+    int32_t remaining = (int32_t)(ce->expires_at - (uint64_t)time(NULL));
     pthread_mutex_unlock(&c->lock);
     return remaining;
 }
 
 void tc_stat(int conn_fd, Cache* c) {
     pthread_mutex_lock(&c->lock);
-    
+
+    char newline = '\n';
+    char forward_slash = '/';
+
     // Total entries: c->entries
-    send_result(conn_fd, "Total entries: ", 15);
-    send_result(conn_fd, c->entries, sizeof(c->entries));
-    send_result(conn_fd, '\n', 1);
+    char total_entires[16] = "Total entries: "; 
+    send_result(conn_fd, &total_entires, strlen(total_entires));
+    send_result(conn_fd, &c->entries, sizeof(c->entries));
+    send_result(conn_fd, &newline, 1);
 
     // Memory used (bytes): c->mem_used/c->mem_max
-    send_result(conn_fd, "Memory used (bytes): ", 22);
-    send_result(conn_fd, c->mem_used, sizeof(c->mem_used));
-    send_result(conn_fd, '/', 1);
-    send_result(conn_fd, c->mem_max, sizeof(c->mem_max));
-    send_result(conn_fd, '\n', 1);
+    char memory_used[22] = "Memory used (bytes): ";
+    send_result(conn_fd, &memory_used, strlen(memory_used));
+    send_result(conn_fd, &c->mem_used, sizeof(c->mem_used));
+    send_result(conn_fd, &forward_slash, 1);
+    send_result(conn_fd, &c->mem_max, sizeof(c->mem_max));
+    send_result(conn_fd, &newline, 1);
 
     if(c->policy == EVICTION_LRU) {
-        send_result(conn_fd, "Eviction policy: LRU\n", 21);
+        char policy_lru[22] =  "Eviction policy: LRU\n";
+        send_result(conn_fd, &policy_lru, strlen(policy_lru));
     } 
     else if (c->policy == EVICTION_LFU)
     {
-        send_result(conn_fd, "Eviction policy: LFU\n", 21);
+        char policy_lfu[22] =  "Eviction policy: LRU\n";
+        send_result(conn_fd, &policy_lfu, strlen(policy_lfu));
     }
 
     pthread_mutex_unlock(&c->lock);
