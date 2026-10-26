@@ -21,35 +21,41 @@ void parse(int conn_fd, Cache* cache, char commandbuf[]) {
             .key = key,
             .value = value,
             .value_len = value ? strlen(value) : 0,
-            .ttl = 300,
+            .ttl = TC_NO_EXPIRY,
         };
 
         if (c.key == NULL || c.value == NULL) {
-            send_result(conn_fd, "FAILED", 6);
+            tc_log(TC_DEBUG, "Send: %s", "FAILED");
+            send_result(conn_fd, "FAILED", sizeof("FAILED")-1);
+            return;
         }
 
         if(tc_set(cache, &c)) 
-            send_result(conn_fd, "OK", 2);
-        else 
-            send_result(conn_fd, "FAILED", 6);
+        {
+            tc_log(TC_DEBUG, "Send: %s", "OK");
+            send_result(conn_fd, "OK", sizeof("OK")-1);
+        }
+        else {
+            tc_log(TC_DEBUG, "Send: %s", "FAILED");
+            send_result(conn_fd, "FAILED", sizeof("FAILED")-1);
+        }
     } 
     else if(strcmp(command_type, "GET") == 0) {
 
         command c = {
            .key = strtok(NULL, " "),
-           .value = "", .value_len = 0, .ttl = -1,
+           .value = "", .value_len = 0, .ttl = 0,
         };
 
-        int value_len = 0;
+        size_t value_len = 0;
         void* value = tc_get(cache, &c, &value_len);
-        if (value == NULL) {
-            send_result(conn_fd, "(nil)", 5);
-        } else {
-            printf("Value length: %d\n", value_len);
-            printf("Value bytes: ");
-            fwrite(value, 1, value_len, stdout);
-            printf("\n");
-
+        if (value == NULL) 
+        {
+            tc_log(TC_DEBUG, "Send: %s", "(nil)");
+            send_result(conn_fd, "(nil)", sizeof("(nil)")-1);
+        }
+        else {
+            tc_log(TC_DEBUG, "Send: %s", (char*)value);
             send_result(conn_fd, value, value_len);
             free(value);
         }
@@ -59,60 +65,127 @@ void parse(int conn_fd, Cache* cache, char commandbuf[]) {
         command c = {
             .key = strtok(NULL, " "),
             .value = "", .value_len = 0, 
-            .ttl = -1,  // no worries, delete() ignores ttl
+            .ttl = 0,  // no worries, delete() ignores ttl
         };
 
         if(tc_delete(cache, &c)) 
-            send_result(conn_fd, "OK", 2);
-        else 
-            send_result(conn_fd, "FAILED", 6);
+        {
+            tc_log(TC_DEBUG, "Send: %s", "OK");
+            send_result(conn_fd, "OK", sizeof("OK")-1);
+        }
+        else {
+            tc_log(TC_DEBUG, "Send: %s", "FAILED");
+            send_result(conn_fd, "FAILED", sizeof("FAILED")-1);
+        }
     } 
     else if(strcmp(command_type, "EXPIRE") == 0) {
         
+        char* key = strtok(NULL, " ");
+        int ttl = atoi(strtok(NULL, " "));
+        if(ttl <= 0) {
+            // reject negative and zero ttl
+            tc_log(TC_DEBUG, "Send: %s", "ILLEGAL");
+            send_result(conn_fd, "ILLEGAL", sizeof("ILLEGAL")-1);
+            return;
+        }   
+
         command c = {
-            .key = strtok(NULL, " "),
+            .key = key,
             .value = "", .value_len = 0, 
-            .ttl = atoi(strtok(NULL, " ")),
+            /* 
+            * later converted to unsigned after checking 
+            *  because if client sent negative value forced to unsigned, it can round to unusual values
+            */
+            .ttl = (uint64_t)ttl,
         };
 
         if(tc_expire(cache, &c)) 
-            send_result(conn_fd, "OK", 2);
-        else 
-            send_result(conn_fd, "FAILED", 6);
+        {
+            tc_log(TC_DEBUG, "Send: %s", "OK");
+            send_result(conn_fd, "OK", sizeof("OK") - 1);
+        }
+        else {
+            tc_log(TC_DEBUG, "Send: %s", "FAILED");
+            send_result(conn_fd, "FAILED", sizeof("FAILED")-1);       
+        }
     }
     else if(strcmp(command_type, "EXIST") == 0) {
         
         command c = {
             .key = strtok(NULL, " "),
             .value = "", .value_len = 0, 
-            .ttl = -1,
+            .ttl = 0,
         };
 
-        if(tc_exists(cache, &c)) 
-            send_result(conn_fd, "EXISTS", 6);
-        else 
-            send_result(conn_fd, "EXISTS", 14);
+        char yes = 'Y';
+        char no = 'N';
+
+        if(tc_exists(cache, &c)) {
+            tc_log(TC_DEBUG, "Send: key<%s> exist", c.key);
+            send_result(conn_fd, &yes, 1);
+        } 
+        else {
+            tc_log(TC_DEBUG, "Send: key<%s> does not exist", c.key);
+            send_result(conn_fd, &no, 1);
+        } 
     }
     else if(strcmp(command_type, "TTL") == 0) {
         
         command c = {
             .key = strtok(NULL, " "), 
             .value = "", .value_len = 0,
-            .ttl = -1,
+            .ttl = 0,
         };
 
-        uint32_t ttl_amount = tc_ttl(cache, &c);
-        send_result(conn_fd, ttl_amount, sizeof(ttl_amount));
+        int32_t ttl_amount = tc_ttl(cache, &c);
+
+        switch (ttl_amount)
+        {
+        case TC_TTL_EXPIRED:
+            send_result(conn_fd, "EXPIRED", sizeof("EXPIRED")-1);
+            break;
+
+        case TC_TTL_NOT_EXIST:
+            send_result(conn_fd, "NOEXIST", sizeof("NOEXIST")-1);
+            break;
+        
+        default:
+            
+            tc_log(TC_DEBUG, "TTL of key: %s is %d", c.key, ttl_amount);
+            
+            char response[16];
+            int len = snprintf(response, sizeof(response), "%"PRId32, ttl_amount);
+            send_result(conn_fd, &response, (size_t)len);
+            break;
+        }
     }
-    else if(strcmp(command_type, "PING") == 0 || strcmp(command_type, "PING\n") == 0 ) {
-        send_result(conn_fd, "PONG", 4);
+    else if(strcmp(command_type, "PING") == 0 || 
+        strcmp(command_type, "PING\n") == 0 ) {
+        send_result(conn_fd, "PONG", sizeof("PONG")-1);
     }
-    else if(strcmp(command_type, "STAT") == 0 || strcmp(command_type, "STAT\n") == 0 ) {
-        tc_stat(conn_fd, cache);
+    else if(strcmp(command_type, "STAT") == 0 || 
+        strcmp(command_type, "STAT\n") == 0 ) {
+        
+        char response[16];
+        char* stat_type = strtok(NULL, "");
+
+        if(strcmp(stat_type, "KEY") == 0) {
+            size_t cache_key_count = cache->entries;
+            int len = snprintf(response, sizeof(response), "%zu", cache_key_count);
+            send_result(conn_fd, &response, (size_t)len);
+        } 
+        else if (strcmp(stat_type, "MEM") == 0)
+        {
+            size_t cache_mem_bytes = cache->mem_used;
+            int len = snprintf(response, sizeof(response), "%zu", cache_mem_bytes);
+            send_result(conn_fd, &response, (size_t)len);
+        }
+        else
+            send_result(conn_fd, "UNKNOWN", sizeof("UNKNOWN")-1);
     } 
     else {
         // unknown command
-        send_result(conn_fd, "", 0);
+        send_result(conn_fd, "UNKNOWN", sizeof("UNKNOWN")-1);
     }
 }
 
@@ -127,17 +200,13 @@ void parse_command(Cache* cache, int conn_fd) {
         n = read(conn_fd, command_buff, TC_MAX_READ_BYTES);
         
         if(n > 0) {
-            command_buff[n] = '\0'; // null terminate each command
-            printf("%s", command_buff);
+            command_buff[n-1] = '\0'; // replace newline andnull terminate each command
+            tc_log(TC_DEBUG, "Receive: %s", command_buff);
             parse(conn_fd, cache, command_buff);
         }
         else if (n == 0)
-        {
             return;
-        } 
         else 
-        {
             perror("read");
-        }
     }
 }
