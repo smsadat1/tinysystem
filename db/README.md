@@ -21,23 +21,35 @@ Purpose built database for TinySystem written in C. It combines persistent key-v
 
 ```text
 SET <key> <value>
-  ├── update replay
+  ├── lock mutex_mutation
+  ├── lock replay → update replay → unlock replay
+  ├── lock storage  
   ├── update pindex
-  ├── update cache
-  ├── update LRU
+  ├── update cache → update LRU
+  ├── unlock storage  
+  ├── unlock mutex_mutation
   └── send "OK" to client
 ```
-**Happens in a single mutex lock**
 
+```text
+DELETE <key> <value>
+  ├── lock mutex_mutation
+  ├── lock replay → update replay → unlock replay
+  ├── lock storage  
+  ├── update pindex
+  ├── update cache → update LRU
+  ├── unlock storage  
+  ├── unlock mutex_mutation
+  └── send "OK" to client
+```
 
 ```text
 GET <key>
-  ├── Cache hit  → Update LRU → send <value> to client
-  └── Cache miss → Search pindex
-                    ├── Found → Populate cache → Update LRU → send <value> to client
-                    └── Absent → send "(nil)" to client
+  ├── Cache hit  → lock storage → get value → Update LRU  → Unlock storage → send <value> to client
+  └── Cache miss → lock storage → Search pindex 
+                                  ├── Found → Populate cache → Update LRU → unlock storage → send <value> to client
+                                  └── Absent → unlock storage → send "(nil)" to client 
 ```
-**Happens in a single mutex lock**
 
 
 ```text
@@ -60,15 +72,6 @@ EXPIRE <key> <seconds>
 TTL <key> 
   ├── Cache hit → Update LRU →  send <remaining_seconds> to client
   └── Cache miss → send "FAILED" to client
-```
-**Happens in a single mutex lock**
-
-```text
-DELETE <key> <value>
-  ├── Append DELETE mutation to replay.log
-  ├── Remove key from pindex
-  ├── Update LRU and Invalidate cache entry
-  └── send "OK" to client
 ```
 **Happens in a single mutex lock**
 
