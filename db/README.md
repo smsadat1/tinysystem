@@ -17,7 +17,7 @@ Purpose built database for TinySystem written in C. It combines persistent key-v
 | `PING`   | PING PONG                  | 
 
 
-**Operations**
+## Operations
 
 ```text
 SET <key> <value>
@@ -30,6 +30,30 @@ SET <key> <value>
   ├── unlock mutex_mutation
   └── send "OK" to client
 ```
+**SET workflow**
+```text
+1. Accept TCP request
+2. Parse SET <key> <value>
+
+3. Call internal API -> tc_set()
+
+4. Acquire replay_mutex -> tc_replay_set()
+5. Append mutation to replay.log
+6. fsync(replay.log)
+7. Release replay_mutex
+
+8.  Acquire storage_mutex -> tc_db_set()
+8.  Update db.log
+8.  fsync(db.log)
+9.  Update B-tree
+
+10. Update cache ->   tc_cache_set()
+11. Update LRU/LFU metadata
+12. Release storage_mutex
+
+13. Send "OK"
+```
+
 
 ```text
 DELETE <key> <value>
@@ -42,6 +66,30 @@ DELETE <key> <value>
   ├── unlock mutex_mutation
   └── send "OK" to client
 ```
+**DELETE workflow**
+```text
+1. Accept TCP request
+2. Parse DELETE <key>
+
+3. Call internal API -> tc_delete()
+
+4. Acquire replay_mutex -> tc_replay_set()
+5. Append mutation to replay.log
+6. fsync(replay.log)
+7. Release replay_mutex
+
+8.  Acquire storage_mutex -> tc_db_set()
+8.  Update db.log
+8.  fsync(db.log)
+9.  Update B-tree
+
+10. Update cache ->   tc_cache_set()
+11. Update LRU/LFU metadata
+12. Release storage_mutex
+
+13. Send "OK"
+```
+
 
 ```text
 GET <key>
