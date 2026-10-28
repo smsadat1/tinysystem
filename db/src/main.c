@@ -55,11 +55,7 @@ int main(int argc, char* argv[])
     }
     pthread_detach(worker_thread);
 
-    if(tc_server(&cache) == TC_SERVER_ERROR) {
-        tc_log(TC_DEBUG, "Destroying cache");
-        destroy_cache(&cache);
-        return TC_SERVER_ERROR;
-    }
+    tc_server(&cache);
 
     tc_log(TC_DEBUG, "Destroying cache");
     destroy_cache(&cache);

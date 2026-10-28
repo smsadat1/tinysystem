@@ -2,8 +2,10 @@
 #define TINYCACHE_H
 
 #include <inttypes.h>
+#include <errno.h>
 #include <stdarg.h>
 #include <pthread.h>
+#include <signal.h>
 #include <stdbool.h>
 #include <stdio.h> 
 #include <stdint.h>
@@ -42,18 +44,8 @@
 #define TC_LOG_DEEP_RED "\033[1;31m"
 #define TC_LOG_COLOR_TERMINATE "\033[0m"
 
-typedef struct command_t {
-    char *key;
-    char *value;
-    size_t value_len;
-    uint64_t ttl;
-} command;
 
-typedef enum {
-    EVICTION_LRU,
-    EVICTION_LFU,
-} EvictionPolicy;
-
+/* =================================================== Logging =================================================== */
 typedef enum {
     TC_DEBUG,
     TC_INFO,
@@ -61,6 +53,15 @@ typedef enum {
     TC_ERROR,
     TC_FATAL,
 } TC_LOG_LEVEL;
+
+void tc_log(TC_LOG_LEVEL level, char* mesg, ...);
+
+
+/* =================================================== Cache Layer =================================================== */
+typedef enum {
+    EVICTION_LRU,
+    EVICTION_LFU,
+} EvictionPolicy;
 
 typedef struct cache_entry_t {
     
@@ -95,33 +96,6 @@ typedef struct cache_t {
     pthread_mutex_t lock;
 } Cache;
 
-typedef struct WorkerConfig_t {
-    int max_mem_mb;
-    EvictionPolicy policy;
-    Cache* cache;
-} WorkerConfig;
-
-
-void* worker(void* arg);
-int tc_server(Cache* cache);
-
-// output to client
-void send_result(int conn_fd, void* result, size_t resultlen);
-// logging
-void tc_log(TC_LOG_LEVEL level, char* mesg, ...);
-
-// command parsing from server
-void parse_command(Cache* cache, int conn_fd);
-
-
-// cache management api
-bool tc_set(Cache* c, command* str);
-void* tc_get(Cache* c, command* str, size_t* value_len);
-bool tc_delete(Cache* c, command* str);
-bool tc_exists(Cache* c, command* str);
-bool tc_expire(Cache* c, command* str);
-int32_t tc_ttl(Cache* c, command* str);
-void tc_stat(int conn_fd, Cache* c);
 
 // LFU
 cache_entry* find_lfu_victim(Cache* c);
@@ -131,8 +105,6 @@ void lru_insert_lock(Cache* c, cache_entry* ce);
 void lru_update_lock(Cache* c, cache_entry* ce);
 void lru_remove_lock(Cache* c, cache_entry* ce);
 
-
-// core implementations over hashmap
 
 void init_cache(Cache* cache);
 void destroy_cache(Cache* cache);
@@ -146,6 +118,39 @@ bool insert(Cache* c, char* key, void* value, size_t value_len, int ttl);
 cache_entry* search(Cache* ce, char* key);
 // used by DELETE
 bool delete(Cache* c, char* key);
+
+
+/* =================================================== API Layer =================================================== */
+typedef struct command_t {
+    char *key;
+    char *value;
+    size_t value_len;
+    uint64_t ttl;
+} command;
+
+bool tc_set(Cache* c, command* str);
+void* tc_get(Cache* c, command* str, size_t* value_len);
+bool tc_delete(Cache* c, command* str);
+bool tc_exists(Cache* c, command* str);
+bool tc_expire(Cache* c, command* str);
+int32_t tc_ttl(Cache* c, command* str);
+void tc_stat(int conn_fd, Cache* c);
+
+typedef struct WorkerConfig_t {
+    int max_mem_mb;
+    EvictionPolicy policy;
+    Cache* cache;
+} WorkerConfig;
+
+
+void* worker(void* arg);
+void tc_server(Cache* cache);
+
+// output to client
+void send_result(int conn_fd, void* result, size_t resultlen);
+
+// command parsing from server
+void parse_command(Cache* cache, int conn_fd);
 
 
 #endif // TINYCACHE_H
