@@ -78,3 +78,15 @@ def test_memory_accounting(client):
     # memory should be reset since all previous test keys deleted subsequently
     assert request(client, "STAT KEY") == "0"
     assert request(client, "STAT MEM") == "0"
+
+    # test with new entries (memory count keeps count of both key & value)
+    assert request(client, "SET memes/cat.jpg ju437hde") == "OK"
+    assert request(client, "SET docs/important.txt mfd74edh") == "OK"
+    assert request(client, "STAT KEY") == "2"
+    assert request(client, "STAT MEM") == "47" 
+    assert request(client, "DELETE memes/cat.jpg") == "OK"
+    assert request(client, "STAT KEY") == "1"
+    assert request(client, "STAT MEM") == "26"
+    assert request(client, "DELETE docs/important.txt") == "OK"
+    assert request(client, "STAT KEY") == "0"
+    assert request(client, "STAT MEM") == "0"
