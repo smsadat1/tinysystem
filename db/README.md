@@ -1,104 +1,52 @@
-# db
-**A lightweight persistent key-value store with B-tree indexing, log-based recovery, and a configurable in-memory cache.**
-
-Purpose built database for TinySystem written in C. It combines persistent key-value storage with a bounded in-memory cache, providing a simple TCP interface for storing, retrieving, and managing keys.
+# TinyCache
+**A lightweight key-value store with LRU & LFU eviction available.**
 
 ## Commands
 
-| Command  | Purpose                    | Effect
-| -------- | -------------------------- |--------------------------
-| `SET`    | Store/update a key         | Cache LRU Pindex Replay
-| `DELETE` | Remove a key               | Cache LRU Pindex Replay
-| `GET`    | Retrieve a value           | Cache LRU Pindex
-| `EXIST`  | Check whether a key exists | Cache LRU Pindex
-| `EXPIRE` | Set/update TTL             | Cache LRU 
-| `TTL`    | Get remaining TTL          | Cache LRU
-| `STAT`   | Status                     | Cache
-| `PING`   | PING PONG                  | 
+| Command  | Purpose                    
+| -------- | -------------------------- 
+| `SET`    | Store/update a key         
+| `DELETE` | Remove a key               
+| `GET`    | Retrieve a value           
+| `EXIST`  | Check whether a key exists 
+| `EXPIRE` | Set/update TTL              
+| `TTL`    | Get remaining TTL          
+| `STAT`   | Status                     
+| `PING`   | PING PONG             
 
 
 ## Operations
 
 ```text
 SET <key> <value>
-  ├── lock mutex_mutation
-  ├── lock replay → update replay → unlock replay
-  ├── lock storage  
-  ├── update pindex
-  ├── update cache → update LRU
-  ├── unlock storage  
-  ├── unlock mutex_mutation
+  ├── lock cache
+  ├── update cache
+  ├── update LRU 
+  ├── unlock cache
   └── send "OK" to client
 ```
-**SET workflow**
-```text
-1. Accept TCP request
-2. Parse SET <key> <value>
-
-3. Call internal API -> tc_set()
-
-4. Acquire replay_mutex -> tc_replay_set()
-5. Append mutation to replay.log
-6. fsync(replay.log)
-7. Release replay_mutex
-
-8.  Acquire storage_mutex -> tc_db_set()
-8.  Update db.log
-8.  fsync(db.log)
-9.  Update B-tree
-
-10. Update cache ->   tc_cache_set()
-11. Update LRU/LFU metadata
-12. Release storage_mutex
-
-13. Send "OK"
-```
-
+**Happens in a single mutex lock**
 
 ```text
 DELETE <key> <value>
-  ├── lock mutex_mutation
-  ├── lock replay → update replay → unlock replay
-  ├── lock storage  
-  ├── update pindex
-  ├── update cache → update LRU
+  ├── lock cache
+  ├── update cache
+  ├── update LRU
   ├── unlock storage  
-  ├── unlock mutex_mutation
+  ├── unlock cache
   └── send "OK" to client
 ```
-**DELETE workflow**
-```text
-1. Accept TCP request
-2. Parse DELETE <key>
-
-3. Call internal API -> tc_delete()
-
-4. Acquire replay_mutex -> tc_replay_set()
-5. Append mutation to replay.log
-6. fsync(replay.log)
-7. Release replay_mutex
-
-8.  Acquire storage_mutex -> tc_db_set()
-8.  Update db.log
-8.  fsync(db.log)
-9.  Update B-tree
-
-10. Update cache ->   tc_cache_set()
-11. Update LRU/LFU metadata
-12. Release storage_mutex
-
-13. Send "OK"
-```
-
+**Happens in a single mutex lock**
 
 ```text
 GET <key>
-  ├── Cache hit  → lock storage → get value → Update LRU  → Unlock storage → send <value> to client
-  └── Cache miss → lock storage → Search pindex 
-                                  ├── Found → Populate cache → Update LRU → unlock storage → send <value> to client
-                                  └── Absent → unlock storage → send "(nil)" to client 
+  ├── lock cache
+  ├── search value
+  ├── update LRU 
+  ├── unlock cache
+  └── send <value> to client
 ```
-
+**Happens in a single mutex lock**
 
 ```text
 EXIST <key>
@@ -150,59 +98,30 @@ The configuration file determines the locations of the persistent database and r
 
 Use LRU (set by default)
 ```bash 
-$ db --eviction lru 
+$ tinycache --eviction lru 
 ```
 Use LFU 
 ```bash
-$ db --eviction lfu
+$ tinycache --eviction lfu
 ```
 
 **Cache memory limit**
 
 Set the cache capacity to 128 MB:
 ```bash
-$ db --mem_max_mb 128
+$ tinycache --mem_max_mb 128
 ```
 
 Set the cache capacity to 256 MB:
 ```bash
-$ db --mem_max_mb 256
+$ tinycache --mem_max_mb 256
 ```
-
-**Cache statistics**
-
-```bash
-$ db --stat
-status: running
-cache_entries: 123
-cache_hits: 90
-cache_misses: 33
-cache_memory: 78430/134217728
-```
-The numbers are illustrative
-
-| Field           | Description                                                       |
-|-----------------|-------------------------------------------------------------------|
-| status          | Server status       
-| cache_entries   | Number of entries currently in the cache
-| cache_hits      | Number of successful cache lookups
-| cache_misses    | Number of unsuccessful cache lookups
-| cache_memory    | Cache memory usage relative to its configured limit, in bytes
-
 
 ## Architecture
 
 Startup sequence
 ```
-db starts
-  │
-  ├── Launch replay worker
-  │     │
-  │     ├── Read complete records from replay.log
-  │     ├── Follow replay ruleset
-  │     └── Build in-memory B-tree (pindex)
-  │
-  ├── Replay worker exits successfully
+TinyCache starts
   │
   ├── Initialize cache
   │
@@ -211,22 +130,8 @@ db starts
   └── Start accepting TCP connections
 ```
 
-**Replay ruleset**
-- Ignore all rows without newline delimiter, malformed writes are ignored.
-- If key exists in both pindex and replay, find the last mutation and update pindex accordingly.
-- If key exists only in replay, find the last mutation and update pindex accordingly.
-- If key exists only in pindex, deleted it because both `SET` and `DELETE` first appends replay.
-- After completion and guarantee of pindex reconstruction, empty replay to prevent indefinite growth.
-
-
 
 ## Design Notes
-- `pindex` refers to the persistent index backed by  `db.log` file.
-- `replay.log` stores mutations used for recovery.
-- Disk lookup uses B-tree.
 - LRU is the default eviction policy.
 - LFU uses LRU as tie breaker.
-- Cache expiration does not affect persistent records.
-- The cache memory limit is independent of persistent storage capacity.
-- Database, eviction worker and cache operations use a mutex lock, except `PING`.
-- The recovery worker runs before the server begins accepting requests.
+- Eiction worker and cache operations use a mutex lock, except `PING`.
