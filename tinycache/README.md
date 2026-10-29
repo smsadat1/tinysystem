@@ -1,6 +1,13 @@
 # TinyCache
 **A lightweight key-value store with LRU & LFU eviction available.**
 
+## Setup
+```bash
+$ git clone git@github.com:smsadat1/tinysystem.git
+$ cd tinycache
+$ sudo ./setup.sh
+```
+
 ## Commands
 
 | Command  | Purpose                    
