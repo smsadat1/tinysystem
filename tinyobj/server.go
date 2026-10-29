@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"time"
@@ -39,23 +38,6 @@ func (s *server) acceptConnections() {
 	}
 }
 
-func (s *server) handleConnection(conn net.Conn) {
-
-	buffer := make([]byte, 1024)
-
-	for {
-		n, err := conn.Read(buffer)
-		if err != nil {
-			if err != io.EOF {
-				log.Printf("Read error: %s\n", err.Error())
-			}
-			return
-		}
-
-		fmt.Printf("Client: %s", string(buffer[:n]))
-	}
-}
-
 func (s *server) handleConnections() {
 	s.wg.Done()
 
@@ -64,7 +46,7 @@ func (s *server) handleConnections() {
 		case <-s.shutdown:
 			return
 		case conn := <-s.connection:
-			go s.handleConnection(conn)
+			go s.ParseCommands(conn)
 		}
 	}
 }
