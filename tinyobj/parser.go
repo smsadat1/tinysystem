@@ -44,85 +44,102 @@ func handlePUT(args []string, conn net.Conn, reader *bufio.Reader) {
 	SaveFileObject(conn, reader, objLen)
 }
 
-func handleGET(header []string, conn net.Conn) []byte {
+func handleGET(args []string, conn net.Conn, reader *bufio.Reader) {
 
-	if len(header) < 1 {
-		return []byte("V1 FAIL 17\nMalformed header\n")
+	if len(args) != 1 {
+		WriteFailure(conn, "Malformed GET header")
+		return
 	}
 
-	keylen, err := strconv.Atoi(header[0])
-	if err != nil {
-		mesglen := len(err.Error())
-		return []byte("V1 FAIL " + string(mesglen) + err.Error())
-	}
-	if keylen < 1 {
-		return []byte("V1 FAIL 14\nKey too small\n")
+	keylen, err := strconv.Atoi(args[0])
+	if err != nil || keylen < 1 || keylen > 1024 {
+		WriteFailure(conn, "Invalid key length")
+		return
 	}
 
-	return []byte("V1 SUCCESS 3\nOK\n")
+	keyBytes := make([]byte, keylen)
+	if _, err := io.ReadFull(reader, keyBytes); err != nil {
+		return
+	}
+	key := string(keyBytes)
+
+	GetFileObject(conn, key)
 }
 
-func handleDELETE(header []string) []byte {
+func handleDELETE(args []string, conn net.Conn, reader *bufio.Reader) {
 
-	if len(header) < 1 {
-		return []byte("V1 FAIL 17\nMalformed header\n")
+	if len(args) != 1 {
+		WriteFailure(conn, "Malformed DELETE header")
+		return
 	}
 
-	keylen, err := strconv.Atoi(header[0])
-	if err != nil {
-		mesglen := len(err.Error())
-		return []byte("V1 FAIL " + string(mesglen) + err.Error())
-	}
-	if keylen < 1 {
-		return []byte("V1 FAIL 14\nKey too small\n")
+	keylen, err := strconv.Atoi(args[0])
+	if err != nil || keylen < 1 || keylen > 1024 {
+		WriteFailure(conn, "Invalid key length")
+		return
 	}
 
-	return []byte("V1 SUCCESS 3\nOK\n")
+	keyBytes := make([]byte, keylen)
+	if _, err := io.ReadFull(reader, keyBytes); err != nil {
+		return
+	}
+	key := string(keyBytes)
+
+	DeletetFileObject(conn, key)
 }
 
-func handleLIST(header []string) []byte {
+func handleLIST(args []string, conn net.Conn, reader *bufio.Reader) {
 
-	if len(header) < 1 {
-		return []byte("V1 FAIL 17\nMalformed header\n")
+	if len(args) != 1 {
+		WriteFailure(conn, "Malformed LIST header")
+		return
 	}
 
-	prefixlen, err := strconv.Atoi(header[0])
-	if err != nil {
-		mesglen := len(err.Error())
-		return []byte("V1 FAIL " + string(mesglen) + err.Error())
-	}
-	if prefixlen < 1 {
-		return []byte("V1 FAIL 14\nKey too small\n")
+	prefixlen, err := strconv.Atoi(args[0])
+	if err != nil || prefixlen < 1 || prefixlen > 1024 {
+		WriteFailure(conn, "Invalid key length")
+		return
 	}
 
-	return []byte("V1 SUCCESS 3\nOK\n")
+	prefixBytes := make([]byte, prefixlen)
+	if _, err := io.ReadFull(reader, prefixBytes); err != nil {
+		return
+	}
+	prefix := string(prefixBytes)
+
+	ListFileObjects(conn, prefix)
 }
 
-func handleRENAME(header []string) []byte {
+func handleRENAME(args []string, conn net.Conn, reader *bufio.Reader) {
 
-	if len(header) < 2 {
-		return []byte("V1 FAIL 17\nMalformed header\n")
-	}
-
-	newkeylen, err := strconv.Atoi(header[0])
-	if err != nil {
-		mesglen := len(err.Error())
-		return []byte("V1 FAIL " + string(mesglen) + err.Error())
-	}
-	if newkeylen < 1 {
-		return []byte("V1 FAIL 14\nKey too small\n")
+	if len(args) != 2 {
+		WriteFailure(conn, "Malformed RENAME header\n")
+		return
 	}
 
-	oldkeylen, err := strconv.Atoi(header[1])
-	if err != nil {
-		mesglen := len(err.Error())
-		return []byte("V1 FAIL " + string(mesglen) + err.Error())
+	oldkeyLen, err := strconv.Atoi(args[0])
+	if err != nil || oldkeyLen < 1 || oldkeyLen > 1024 {
+		WriteFailure(conn, "Invalid old key length")
+		return
 	}
-	if oldkeylen < 1 {
-		return []byte("V1 FAIL 16\nValue too small\n")
+	oldkeybytes := make([]byte, oldkeyLen)
+	if _, err := io.ReadFull(reader, oldkeybytes); err != nil {
+		return
 	}
+	oldkey := string(oldkeybytes)
 
-	return []byte("V1 SUCCESS 3\nOK\n")
+	newkeylen, err := strconv.ParseInt(args[1], 10, 64)
+	if err != nil || newkeylen < 1 {
+		WriteFailure(conn, "Invalid new key length")
+		return
+	}
+	newkeybytes := make([]byte, newkeylen)
+	if _, err := io.ReadFull(reader, newkeybytes); err != nil {
+		return
+	}
+	newkey := string(newkeybytes)
+
+	RenameFileObject(conn, oldkey, newkey)
 }
 
 func ParseCommands(args []string, conn net.Conn, reader *bufio.Reader) {
@@ -131,18 +148,14 @@ func ParseCommands(args []string, conn net.Conn, reader *bufio.Reader) {
 	switch args[0] {
 	case "PUT":
 		handlePUT(args[1:], conn, reader)
-
 	case "GET":
-		// handleGET(parts[2:], reader, conn)
-
+		handleGET(args[2:], conn, reader)
 	case "LIST":
-		// handleLIST(parts[2:], reader, conn)
-
+		handleLIST(args[2:], conn, reader)
 	case "DELETE":
-		// handleDELETE(parts[2:], reader, conn)
-
+		handleDELETE(args[2:], conn, reader)
 	case "RENAME":
-		// handleRENAME(parts[2:], reader, conn)
+		handleRENAME(args[2:], conn, reader)
 
 	default:
 		WriteFailure(conn, "Unknown command")
