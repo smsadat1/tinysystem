@@ -47,3 +47,24 @@ func SaveFileObject(conn net.Conn, reader io.Reader, objlen int64) {
 
 	WriteSuccess(conn, "Storage write successful\n")
 }
+
+func GetFileObject(conn net.Conn, key string) {
+
+	const exampleObjLen = 100000 // temporary, should replace after TinyCache integration
+	fmt.Printf("Downloading: %s (%d bytes)\n", key, exampleObjLen)
+
+}
+
+func DeletetFileObject(conn net.Conn, key string) {
+
+	const exampleObjLen = 100000 // temporary, should replace after TinyCache integration
+	fmt.Printf("Deleting: %s (%d bytes)\n", key, exampleObjLen)
+}
+
+func ListFileObjects(conn net.Conn, prefix string) {
+
+}
+
+func RenameFileObject(conn net.Conn, oldKey string, newKey string) {
+
+}
