@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"log"
 	"net"
+	"strings"
 	"time"
 )
 
@@ -38,6 +40,31 @@ func (s *server) acceptConnections() {
 	}
 }
 
+func (s *server) handleConnection(conn net.Conn) {
+	defer conn.Close()
+
+	reader := bufio.NewReader(conn)
+	header, err := reader.ReadString('\n')
+	if err != nil {
+		return
+	}
+	header = strings.TrimSuffix(header, "\n")
+	parts := strings.Fields(header)
+
+	if len(parts) < 2 {
+		WriteFailure(conn, "Malformed header\n")
+		return
+	}
+
+	// header's first part: Version info
+	if parts[0] != "V1" {
+		WriteFailure(conn, "Unsupported protocol version\n")
+		return
+	}
+
+	ParseCommands(parts[1:], conn, reader)
+}
+
 func (s *server) handleConnections() {
 	s.wg.Done()
 
@@ -46,7 +73,7 @@ func (s *server) handleConnections() {
 		case <-s.shutdown:
 			return
 		case conn := <-s.connection:
-			go s.ParseCommands(conn)
+			go s.handleConnection(conn)
 		}
 	}
 }
