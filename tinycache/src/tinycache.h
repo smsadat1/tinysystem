@@ -1,22 +1,24 @@
 #ifndef TINYCACHE_H
 #define TINYCACHE_H
 
-#include <inttypes.h>
 #include <errno.h>
-#include <stdarg.h>
+#include <fcntl.h>
+#include <inttypes.h>
 #include <pthread.h>
-#include <signal.h>
+#include <stdarg.h>
 #include <stdbool.h>
-#include <stdio.h> 
 #include <stdint.h>
+#include <stdio.h> 
+#include <stdlib.h> 
 #include <string.h>
+#include <signal.h>
+#include <sys/socket.h> 
+#include <sys/stat.h>
+#include <sys/types.h> 
 #include <netdb.h> 
 #include <netinet/in.h> 
-#include <stdlib.h> 
-#include <string.h> 
-#include <sys/socket.h> 
-#include <sys/types.h> 
 #include <unistd.h>
+#include <zlib.h>
 
 #define TC_MAX_READ_BYTES 777 // max_command_len + whitespace + max_key_len + whitespace + max_value_len
 #define TC_MAX_COMMAND_LEN 7
@@ -25,6 +27,10 @@
 #define TC_DEFAULT_MAX_MEM_MB 124
 #define TC_MAX_MEMORY_MB 128
 #define TC_MAX_ALLOWED_CONNECTION 80
+
+#define TC_MAX_RECORD_PARTITION 1000
+#define TC_RECORD_MAGIC 0xB16B00B5u
+#define TC_RECORD_REVSCAN_BLOCK_SIZE 4096
 
 #define TC_SERVER_ERROR -67
 #define TC_PORT 9736   // opposite of redis
@@ -118,6 +124,33 @@ bool insert(Cache* c, char* key, void* value, size_t value_len, int ttl);
 cache_entry* search(Cache* ce, char* key);
 // used by DELETE
 bool delete(Cache* c, char* key);
+
+
+/* =================================================== Persistent Layer =================================================== */
+
+enum tc_record_op {
+    OP_SET = 1,
+    OP_DELETE = 2
+};
+
+typedef struct record_t {
+    void* value;
+    uint32_t value_len;
+
+    char* key;
+    uint32_t key_len;
+
+    uint8_t op;
+
+    uint32_t crc;
+    uint32_t magic;
+} record;
+
+void* reverse_scan(int record_fd, const char* target_key, size_t key_len);
+
+bool tc_add_record(char* key, void* value, size_t value_len);
+void* tc_get_record(char* key);
+bool tc_delete_record(char* key);
 
 
 /* =================================================== API Layer =================================================== */
