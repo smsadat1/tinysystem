@@ -129,9 +129,14 @@ bool delete(Cache* c, char* key);
 /* =================================================== Persistent Layer =================================================== */
 
 enum tc_record_op {
-    OP_SET = 1,
-    OP_DELETE = 2
-};
+    RECORD_OP_SET = 1,
+    RECORD_OP_DELETE = 2,
+    RECORD_VALUE_FOUND = 3,
+    RECORD_VALUE_NOT_FOUND = 4,
+    RECORD_KEY_NOT_FOUND = 5,
+    RECORD_READ_ERROR = 6,
+    RECORD_WRITE_ERROR = 7,
+};  
 
 typedef struct record_t {
     void* value;
@@ -146,7 +151,17 @@ typedef struct record_t {
     uint32_t magic;
 } record;
 
-void* reverse_scan(int record_fd, const char* target_key, size_t key_len);
+bool pread_all(int fd, void *buf, size_t count, off_t offset);
+bool pwrite_all(int fd, const void *buf, size_t count, off_t offset);
+
+uint8_t revscan(
+    int record_fd, 
+    const char* target_key, 
+    size_t key_len, 
+    off_t offset,  
+    void **out_value,
+    size_t *out_value_len
+);
 
 bool tc_add_record(char* key, void* value, size_t value_len);
 void* tc_get_record(char* key);
