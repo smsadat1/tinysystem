@@ -1,28 +1,121 @@
 #include "tinycache.h"
 
-// Persistent operations on disk
+/*
+    Revers scanning technique:
+    Since last mutation is all what matters
+    So scan happens in reverse to find the latest mutation earliest 
+    Record format is optimized for this reverse scanning
+*/
 
-void* reverse_scan(int record_fd, const char* target_key, size_t key_len) {
-    struct stat st;
+uint8_t revscan(
+    int record_fd, 
+    const char* target_key, 
+    size_t key_len, 
+    off_t offset,  
+    void **out_value,
+    size_t *out_value_len
+) {
 
-    if(fstat(record_fd, &st) == -1)
-        return NULL;
+    // start from EOF
+    off_t count = offset;
+    *out_value = NULL;
+    *out_value_len = 0;
 
-    off_t offset = st.st_size;
-    char* line = NULL;
-    size_t len = 0;
-    size_t cap = 0;
-    char block[TC_RECORD_REVSCAN_BLOCK_SIZE];
+    while(count > 0) {
+        
+        uint32_t magic;
+        if(!pread_all(record_fd, &magic, sizeof(magic), count - sizeof(magic)))
+            return RECORD_READ_ERROR;
 
-    while (offset > 0)
-    {
-        /* code */
+        count -= sizeof(magic);
+        // continue to find records afterwards 
+        if(magic != TC_RECORD_MAGIC)
+            continue;   
+
+        uint8_t op;
+        if(!pread_all(record_fd, &op, sizeof(op), count - sizeof(op)))
+            return RECORD_READ_ERROR;
+
+        count -= sizeof(op);
+        // when OP is unknown (may induce by disk hardware corruption)
+        // continue to find records afterwards 
+        if(op != RECORD_OP_DELETE && op != RECORD_OP_SET)
+            continue;   
+
+        /*
+            Read key:
+            First read the keylen on disk
+            Then read the key itself
+         */
+        uint16_t keylen;
+        if(!pread_all(record_fd, &keylen, sizeof(keylen), count - sizeof(keylen)))
+            return RECORD_READ_ERROR;
+        
+        // keylen stored as 2 bytes
+        count -= sizeof(keylen); 
+        char key[keylen+1];
+        
+        if(!pread_all(record_fd, key, keylen, count - (off_t)keylen))
+            return RECORD_READ_ERROR;
+        
+        key[keylen] = '\0';
+        count -= (off_t)keylen;
+
+        if (keylen != key_len || memcmp(key, target_key, keylen) != 0) {
+            
+            /*
+                When key does not match
+                For SET: move (value + valuelen + key + keylen) amount backwards
+                For DELETE: move (key + keylen) amount backwards
+            */
+            if(op == RECORD_OP_SET) {
+                uint32_t valuelen;
+                // valuelen is stored as 4 bytes
+                if(!pread_all(record_fd, &valuelen, sizeof(valuelen), count-sizeof(valuelen)))
+                    return RECORD_READ_ERROR;
+                
+                count -= (off_t)sizeof(valuelen) + (off_t)valuelen;
+            }   
+
+            // Then continue to find record afterwards when key doesn't match
+            continue;
+        }
+
+        // when last mutation is DELETE then value doesn't matter
+        if(op ==  RECORD_OP_DELETE) {
+            *out_value = NULL;
+            *out_value_len = 0;
+            return RECORD_VALUE_NOT_FOUND;
+        }
+
+        /*
+            Read value (in case of key matched and OP == SET):
+            First read the valuelen on disk
+            Then read the value itself
+            Then return the value
+         */
+        
+        uint32_t valuelen;
+        // valuelen is stored as 4 bytes
+        if(!pread_all(record_fd, &valuelen, sizeof(valuelen), count-sizeof(valuelen))) 
+            return RECORD_READ_ERROR;
+
+        count -= (off_t)sizeof(valuelen);
+
+        void *value = malloc(valuelen ? valuelen : 1);
+        if (value == NULL)
+            return RECORD_READ_ERROR;
+        
+        if(!pread_all(record_fd, value, valuelen, count-(off_t)valuelen)) {
+            free(value);
+            return RECORD_READ_ERROR;
+        }
+
+        *out_value = value;
+        *out_value_len = valuelen;
+        return RECORD_VALUE_FOUND;
     }
-    
-    // key not found
-    goto fail;
 
-fail:
-    free(line);
-    return NULL;
+    // when key is not found
+    return RECORD_KEY_NOT_FOUND;
 }
