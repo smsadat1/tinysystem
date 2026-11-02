@@ -2,9 +2,16 @@
 
 int main(int argc, char* argv[])
 {
+    TINYCACHE_PATH = getenv("TINYCACHE_PATH");
+    if (TINYCACHE_PATH == NULL) {
+        tc_log(TC_WARNING, "TINYCACHE_PATH is not set\nUsing default (/srv/archive/metadata)...");
+        TINYCACHE_PATH = TC_DEFAULT_PATH;
+    }
+    tc_log(TC_DEBUG, "TinyCache record location: %s\n", TINYCACHE_PATH);
+
     Cache cache;
     init_cache(&cache);
-    
+
     WorkerConfig config = {
         .max_mem_mb = TC_DEFAULT_MAX_MEM_MB,
         .policy = EVICTION_LRU,
