@@ -1,6 +1,9 @@
 #ifndef TINYCACHE_H
 #define TINYCACHE_H
 
+#define _GNU_SOURCE             // needed for asprintf()
+#define _POSIX_C_SOURCE 200809L // needed for strdup() and other POSIX specific functions
+
 #include <errno.h>
 #include <fcntl.h>
 #include <inttypes.h>
@@ -19,6 +22,9 @@
 #include <netinet/in.h> 
 #include <unistd.h>
 #include <zlib.h>
+
+extern const char *TINYCACHE_PATH;
+#define TC_DEFAULT_PATH "/srv/archive/metadata"
 
 #define TC_MAX_READ_BYTES 777 // max_command_len + whitespace + max_key_len + whitespace + max_value_len
 #define TC_MAX_COMMAND_LEN 7
@@ -164,7 +170,7 @@ uint8_t revscan(
 );
 
 bool tc_add_record(char* key, void* value, size_t value_len);
-void* tc_get_record(char* key);
+bool tc_get_record(char* key, void** out_value, size_t* valuelen);
 bool tc_delete_record(char* key);
 
 
