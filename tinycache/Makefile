@@ -11,8 +11,7 @@ SRCS = $(shell find $(SRC_DIR) -name '*.c')
 # common flags
 CFLAGS = -std=c17 \
     -Wall -Wextra -Wpedantic -Wshadow -Werror -Wconversion -Wformat=2 \
-    -pthread \
-    -D_POSIX_C_SOURCE=200809L
+    -pthread
 
 LDFLAGS = -pthread
 
