@@ -15,6 +15,8 @@ void init_cache(Cache* cache) {
     cache->mem_max = TC_MAX_MEMORY_MB * 1024ULL * 1024ULL;
     cache->lru_head = NULL;
     cache->lru_tail = NULL;
+    
+    atomic_init(&cache->shutdown, false);
 
     if (pthread_mutex_init(&cache->lock, NULL) != 0) {
         free(cache->buckets);
@@ -63,7 +65,7 @@ bool update(
         memcpy(new_value, value, value_len);
     }
 
-    pthread_mutex_unlock(&c->lock);
+    pthread_mutex_lock(&c->lock);
 
     // update to new value length
     c->mem_used -= ce->value_len;
