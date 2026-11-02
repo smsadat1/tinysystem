@@ -33,10 +33,15 @@ void* worker(void* arg) {
     }
     tc_log(TC_INFO, "Max set memory(mb): %d", config->max_mem_mb);
 
-    while (true)
+    while (!atomic_load(&config->cache->shutdown))
     {
         sleep(TC_INTERVAL_SEC);
+
         tc_log(TC_DEBUG, "Eviction worker checking memory");
+
+        // exit during shutdown
+        if(atomic_load(&config->cache->shutdown))
+            break;
 
         // thread safe eviction
         pthread_mutex_lock(&config->cache->lock);
@@ -57,5 +62,20 @@ void* worker(void* arg) {
         }
 
         pthread_mutex_unlock(&config->cache->lock);
+    }
+
+    // exit
+    tc_log(TC_DEBUG, "Exiting eviction worker");
+    return NULL;
+}
+
+void exit_worker(Cache* cache, pthread_t* worker_thread) {
+    atomic_store(&cache->shutdown, true);
+    int err = pthread_join(*worker_thread, NULL);  
+    
+    if (err != 0) {
+        tc_log(TC_ERROR, "pthread_join failed: %d (%s)\n",
+                err, strerror(err));
+        abort();
     }
 }

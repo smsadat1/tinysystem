@@ -55,15 +55,20 @@ int main(int argc, char* argv[])
         }
     }
 
-    // launch async worker
+    /*
+        Launch eviction worker in separate server thread 
+        Keep it joined since cache memory is shared 
+        So worker needs to be exited before destroying cache
+    */
     if(pthread_create(&worker_thread, NULL, worker, &config) != 0) {
         perror("pthread_create");
         return EXIT_FAILURE;
     }
-    pthread_detach(worker_thread);
 
     tc_server(&cache);
 
+    exit_worker(&cache, &worker_thread);
+    
     tc_log(TC_DEBUG, "Destroying cache");
     destroy_cache(&cache);
 

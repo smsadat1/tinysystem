@@ -9,6 +9,7 @@
 #include <inttypes.h>
 #include <pthread.h>
 #include <stdarg.h>
+#include <stdatomic.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h> 
@@ -105,6 +106,7 @@ typedef struct cache_t {
     cache_entry* lru_head;
     cache_entry* lru_tail;
     
+    atomic_bool shutdown;
     pthread_mutex_t lock;
 } Cache;
 
@@ -124,7 +126,7 @@ void destroy_cache(Cache* cache);
 // hash function
 uint64_t sdbm_hash(const char* key);
 
-// used by SET
+// used by SET (thread safe)
 bool insert(Cache* c, char* key, void* value, size_t value_len, int ttl);
 // used by GET, TTL, EXPIRE, EXISTS
 cache_entry* search(Cache* ce, char* key);
@@ -198,6 +200,8 @@ typedef struct WorkerConfig_t {
 
 
 void* worker(void* arg);
+void exit_worker(Cache* cache, pthread_t* worker_thread);
+
 void tc_server(Cache* cache);
 
 // output to client
