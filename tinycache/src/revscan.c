@@ -24,19 +24,19 @@ uint8_t revscan(
     while(count > 0) {
         
         uint32_t magic;
-        if(!pread_all(record_fd, &magic, sizeof(magic), count - sizeof(magic)))
+        if(!pread_all(record_fd, &magic, sizeof(magic), count - (off_t)sizeof(magic)))
             return RECORD_READ_ERROR;
 
-        count -= sizeof(magic);
+        count -= (off_t)sizeof(magic);
         // continue to find records afterwards 
         if(magic != TC_RECORD_MAGIC)
             continue;   
 
         uint8_t op;
-        if(!pread_all(record_fd, &op, sizeof(op), count - sizeof(op)))
+        if(!pread_all(record_fd, &op, sizeof(op), count - (off_t)sizeof(op)))
             return RECORD_READ_ERROR;
 
-        count -= sizeof(op);
+        count -= (off_t)sizeof(op);
         // when OP is unknown (may induce by disk hardware corruption)
         // continue to find records afterwards 
         if(op != RECORD_OP_DELETE && op != RECORD_OP_SET)
@@ -48,11 +48,11 @@ uint8_t revscan(
             Then read the key itself
          */
         uint16_t keylen;
-        if(!pread_all(record_fd, &keylen, sizeof(keylen), count - sizeof(keylen)))
+        if(!pread_all(record_fd, &keylen, sizeof(keylen), count - (off_t)sizeof(keylen)))
             return RECORD_READ_ERROR;
         
         // keylen stored as 2 bytes
-        count -= sizeof(keylen); 
+        count -= (off_t)sizeof(keylen); 
         char key[keylen+1];
         
         if(!pread_all(record_fd, key, keylen, count - (off_t)keylen))
@@ -71,7 +71,7 @@ uint8_t revscan(
             if(op == RECORD_OP_SET) {
                 uint32_t valuelen;
                 // valuelen is stored as 4 bytes
-                if(!pread_all(record_fd, &valuelen, sizeof(valuelen), count-sizeof(valuelen)))
+                if(!pread_all(record_fd, &valuelen, sizeof(valuelen), count - (off_t)sizeof(valuelen)))
                     return RECORD_READ_ERROR;
                 
                 count -= (off_t)sizeof(valuelen) + (off_t)valuelen;
@@ -97,7 +97,7 @@ uint8_t revscan(
         
         uint32_t valuelen;
         // valuelen is stored as 4 bytes
-        if(!pread_all(record_fd, &valuelen, sizeof(valuelen), count-sizeof(valuelen))) 
+        if(!pread_all(record_fd, &valuelen, sizeof(valuelen), count-(off_t)sizeof(valuelen))) 
             return RECORD_READ_ERROR;
 
         count -= (off_t)sizeof(valuelen);
