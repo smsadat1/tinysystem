@@ -14,8 +14,12 @@ bool tc_add_record(char *key, void *value, size_t value_len) {
     uint64_t partition = sdbm_hash(key) % TC_MAX_RECORD_PARTITION;
 
     struct stat st;
-    char* record_file;
-    sprintf(record_file, "/srv/archive/record/%llu.bin", partition);
+    char* record_file = NULL;
+    if (asprintf(&record_file, "%s/%lu.bin", TINYCACHE_PATH, partition) == -1) {
+        tc_log(TC_ERROR, "Failed to read record at partition: %llu", partition);     
+        free(record_file);   
+        return false;
+    }
 
 /*
 
@@ -28,7 +32,14 @@ bool tc_add_record(char *key, void *value, size_t value_len) {
 
 */
 
-    int record_fd = open(record_file, O_CREAT | O_WRONLY, 0644);
+    int record_fd = open(record_file, O_CREAT | O_WRONLY, 0750);
+    if(record_fd == -1) {
+        perror("open");
+        return false;
+    }
+
+    // once pathname is used by open(), it is no longer needed
+    free(record_file);
 
     if(fstat(record_fd, &st) == -1) {
         perror("fstat");
@@ -43,14 +54,14 @@ bool tc_add_record(char *key, void *value, size_t value_len) {
     pwrite_all(record_fd, value, value_len, record_offset);
     record_offset += (off_t)value_len;
 
-    pwrite_all(record_fd, &key, keylen, record_offset);
+    pwrite_all(record_fd, key, keylen, record_offset);
     record_offset += (off_t)keylen;
 
     pwrite_all(record_fd, &keylen, sizeof(keylen), record_offset);
-    record_offset += sizeof(keylen);
+    record_offset += (off_t)sizeof(keylen);
 
     pwrite_all(record_fd, &op, sizeof(op), record_offset);
-    record_offset += sizeof(op);
+    record_offset += (off_t)sizeof(op);
 
     pwrite_all(record_fd, &magic, sizeof(magic), record_offset);
 
@@ -65,18 +76,29 @@ bool tc_add_record(char *key, void *value, size_t value_len) {
     return true;
 }
 
-// TODO: change it to 
-//  bool tc_get_record(char* key, void** out_value, size_t* valuelen)
-void* tc_get_record(char* key) {
+
+bool tc_get_record(char* key, void** out_value, size_t* valuelen) {
 
     // Select the record partition to append using hash
     uint64_t partition = sdbm_hash(key) % TC_MAX_RECORD_PARTITION;
     
     struct stat st;
-    char* record_file;
-    sprintf(record_file, "/srv/archive/record/%llu.bin", partition);
 
-    int record_fd = open(record_file, O_CREAT | O_WRONLY, 0644);
+    char* record_file = NULL;
+    if (asprintf(&record_file, "%s/%lu.bin", TINYCACHE_PATH, partition) == -1) {
+        tc_log(TC_ERROR, "Failed to read record at partition: %llu", partition);        
+        free(record_file);
+        return false;
+    }
+
+    int record_fd = open(record_file, O_CREAT | O_WRONLY, 0750);
+    if(record_fd == -1) {
+        perror("open");
+        return false;
+    }
+
+    // once pathname is used by open(), it is no longer needed
+    free(record_file);
 
     if(fstat(record_fd, &st) == -1) {
         perror("fstat");
@@ -84,12 +106,25 @@ void* tc_get_record(char* key) {
     }
 
     off_t record_offset = st.st_size;    
+    uint8_t revscan_status = revscan(record_fd, key, strlen(key), record_offset, out_value, valuelen);
 
-    void **value;
-    size_t *valuelen;
+    switch (revscan_status)
+    {
+    case RECORD_READ_ERROR:
+        tc_log(TC_ERROR, "Failed to read record at partition: %llu", partition);        
+        return false;
+    case RECORD_KEY_NOT_FOUND:
+        tc_log(TC_DEBUG, "Key <%s> not found on disk", key);
+        return false;
+    /* 
+    * Not finding value is expected for DELETED 
+    * So those are not count as errors
+    */
+    default:
+        break;
+    }
 
-    // TODO: handle it's return values
-    revscan(record_fd, key, strlen(key), record_offset, value, valuelen);
+    return true;
 }
 
 bool tc_delete_record(char* key) {
@@ -98,8 +133,13 @@ bool tc_delete_record(char* key) {
     uint64_t partition = sdbm_hash(key) % TC_MAX_RECORD_PARTITION;
 
     struct stat st;
-    char* record_file;
-    sprintf(record_file, "/srv/archive/record/%llu.bin", partition);
+
+    char* record_file = NULL;
+    if (asprintf(&record_file, "%s/%lu.bin", TINYCACHE_PATH, partition) == -1) {
+        tc_log(TC_ERROR, "Failed to read record at partition: %llu", partition); 
+        free(record_file);       
+        return false;
+    }
     
 /*
 
@@ -113,7 +153,14 @@ bool tc_delete_record(char* key) {
 */
 
 
-    int record_fd = open(record_file, O_CREAT | O_WRONLY, 0644);
+    int record_fd = open(record_file, O_CREAT | O_WRONLY, 0750);
+    if(record_fd == -1) {
+        perror("open");
+        return false;
+    }
+
+    // once pathname is used by open(), it is no longer needed
+    free(record_file);
 
     if(fstat(record_fd, &st) == -1) {
         perror("fstat");
@@ -125,14 +172,14 @@ bool tc_delete_record(char* key) {
     uint8_t op = RECORD_OP_SET;
     uint32_t magic = TC_RECORD_MAGIC;
 
-    pwrite_all(record_fd, &key, keylen, record_offset);
+    pwrite_all(record_fd, key, keylen, record_offset);
     record_offset += (off_t)keylen;
 
     pwrite_all(record_fd, &keylen, sizeof(keylen), record_offset);
-    record_offset += sizeof(keylen);
+    record_offset += (off_t)sizeof(keylen);
 
     pwrite_all(record_fd, &op, sizeof(op), record_offset);
-    record_offset += sizeof(op);
+    record_offset += (off_t)sizeof(op);
 
     pwrite_all(record_fd, &magic, sizeof(magic), record_offset);
 
