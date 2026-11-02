@@ -16,8 +16,6 @@ $ sudo ./setup.sh
 | `DELETE` | Remove a key               
 | `GET`    | Retrieve a value           
 | `EXIST`  | Check whether a key exists 
-| `EXPIRE` | Set/update TTL              
-| `TTL`    | Get remaining TTL          
 | `STAT`   | Status                     
 | `PING`   | PING PONG             
 
@@ -61,20 +59,6 @@ EXIST <key>
   └── Cache miss → Search pindex
                     ├── Found → Populate cache → Update LRU → send "Y" to client
                     └── Absent → send "N" to client
-```
-**Happens in a single mutex lock**
-
-```text
-EXPIRE <key> <seconds>
-  ├── Cache hit → Add expiry → Update LRU → send "Y" to client
-  └── Cache miss → send "FAILED" to client
-```
-**Happens in a single mutex lock**
-
-```text
-TTL <key> 
-  ├── Cache hit → Update LRU →  send <remaining_seconds> to client
-  └── Cache miss → send "FAILED" to client
 ```
 **Happens in a single mutex lock**
 

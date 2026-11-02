@@ -2,6 +2,9 @@
 
 #include "tinycache.h"
 
+/*
+TODO: Add prefix support in GET, & DELETE
+*/
 void parse(int conn_fd, Cache* cache, char commandbuf[]) {
 
     // replace newline with null terminator
@@ -78,37 +81,6 @@ void parse(int conn_fd, Cache* cache, char commandbuf[]) {
             send_result(conn_fd, "FAILED", sizeof("FAILED")-1);
         }
     } 
-    else if(strcmp(command_type, "EXPIRE") == 0) {
-        
-        char* key = strtok(NULL, " ");
-        int ttl = atoi(strtok(NULL, " "));
-        if(ttl <= 0) {
-            // reject negative and zero ttl
-            tc_log(TC_DEBUG, "Send: %s", "ILLEGAL");
-            send_result(conn_fd, "ILLEGAL", sizeof("ILLEGAL")-1);
-            return;
-        }   
-
-        command c = {
-            .key = key,
-            .value = "", .value_len = 0, 
-            /* 
-            * later converted to unsigned after checking 
-            *  because if client sent negative value forced to unsigned, it can round to unusual values
-            */
-            .ttl = (uint64_t)ttl,
-        };
-
-        if(tc_expire(cache, &c)) 
-        {
-            tc_log(TC_DEBUG, "Send: %s", "OK");
-            send_result(conn_fd, "OK", sizeof("OK") - 1);
-        }
-        else {
-            tc_log(TC_DEBUG, "Send: %s", "FAILED");
-            send_result(conn_fd, "FAILED", sizeof("FAILED")-1);       
-        }
-    }
     else if(strcmp(command_type, "EXIST") == 0) {
         
         command c = {
@@ -128,36 +100,6 @@ void parse(int conn_fd, Cache* cache, char commandbuf[]) {
             tc_log(TC_DEBUG, "Send: key<%s> does not exist", c.key);
             send_result(conn_fd, &no, 1);
         } 
-    }
-    else if(strcmp(command_type, "TTL") == 0) {
-        
-        command c = {
-            .key = strtok(NULL, " "), 
-            .value = "", .value_len = 0,
-            .ttl = 0,
-        };
-
-        int32_t ttl_amount = tc_ttl(cache, &c);
-
-        switch (ttl_amount)
-        {
-        case TC_TTL_EXPIRED:
-            send_result(conn_fd, "EXPIRED", sizeof("EXPIRED")-1);
-            break;
-
-        case TC_TTL_NOT_EXIST:
-            send_result(conn_fd, "NOEXIST", sizeof("NOEXIST")-1);
-            break;
-        
-        default:
-            
-            tc_log(TC_DEBUG, "TTL of key: %s is %d", c.key, ttl_amount);
-            
-            char response[16];
-            int len = snprintf(response, sizeof(response), "%"PRId32, ttl_amount);
-            send_result(conn_fd, &response, (size_t)len);
-            break;
-        }
     }
     else if(strcmp(command_type, "PING") == 0 || 
         strcmp(command_type, "PING\n") == 0 ) {

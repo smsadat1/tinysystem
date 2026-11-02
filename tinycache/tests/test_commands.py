@@ -55,24 +55,6 @@ def test_long_key(client):
     assert request(client, f"GET {key}") == "1"
     assert request(client, f"DELETE {key}") == "OK"
 
-def test_key_expiration(client):
-    assert request(client, "SET Banana 789") == "OK"
-    assert request(client, "EXPIRE Banana 10") == "OK"
-    assert request(client, "TTL Banana") == "10"
-    assert request(client, "TTL missing") == "NOEXIST"
-    assert request(client, "EXPIRE Banana -69") == "ILLEGAL"
-    time.sleep(11)
-    assert request(client, "GET Banana") == "(nil)"
-
-def test_key_expiration_extended(client):
-    assert request(client, "SET Pineapple 789") == "OK"
-    assert request(client, "EXPIRE Pineapple 10") == "OK"
-    assert request(client, "TTL Pineapple") == "10"
-    time.sleep(6)
-    assert request(client, "EXPIRE Pineapple 20") == "OK"
-    assert request(client, "TTL Pineapple") == "24"
-    time.sleep(25)
-    assert request(client, "GET Pineapple") == "(nil)"
 
 def test_memory_accounting(client):
     # memory should be reset since all previous test keys deleted subsequently
