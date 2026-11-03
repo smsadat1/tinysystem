@@ -80,10 +80,7 @@ typedef struct cache_entry_t {
     char *key;
     void *value;
     size_t value_len;
-    
-    // bool expiry;
-    // uint64_t expires_at;
-    
+        
     // count access frequency for LFU
     uint32_t frequency;    
     // Doubly linked LRU list
@@ -106,7 +103,10 @@ typedef struct cache_t {
     cache_entry* lru_tail;
     
     atomic_bool shutdown;
-    pthread_mutex_t lock;
+    pthread_mutex_t worker_lock;
+    pthread_cond_t worker_cond;
+
+    pthread_mutex_t lock;   // cache lock
 } Cache;
 
 

@@ -18,11 +18,27 @@ void init_cache(Cache* cache) {
     
     atomic_init(&cache->shutdown, false);
 
+    if (pthread_mutex_init(&cache->worker_lock, NULL) != 0) {
+        free(cache->buckets);
+        cache->buckets = NULL;
+        abort();        
+    }
+
+    pthread_condattr_t attr;
+    pthread_condattr_init(&attr);
+    pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
+
+    if (pthread_cond_init(&cache->worker_cond, &attr) != 0) {
+        free(cache->buckets);
+        cache->buckets = NULL;
+        abort();        
+    }
+
     if (pthread_mutex_init(&cache->lock, NULL) != 0) {
         free(cache->buckets);
         cache->buckets = NULL;
         abort();
-    }
+    }    
 }
 
 // Traverse and NULL whole cache before exit

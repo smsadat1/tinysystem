@@ -7,7 +7,7 @@ int main(int argc, char* argv[])
         tc_log(TC_WARNING, "TINYCACHE_PATH is not set\nUsing default (/srv/archive/metadata)...");
         TINYCACHE_PATH = TC_DEFAULT_PATH;
     }
-    tc_log(TC_DEBUG, "TinyCache record location: %s\n", TINYCACHE_PATH);
+    tc_log(TC_DEBUG, "TinyCache record location: %s", TINYCACHE_PATH);
 
     Cache cache;
     init_cache(&cache);

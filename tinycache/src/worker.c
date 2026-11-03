@@ -35,9 +35,23 @@ void* worker(void* arg) {
 
     while (!atomic_load(&config->cache->shutdown))
     {
-        sleep(TC_INTERVAL_SEC);
+        struct timespec deadline;
+        clock_gettime(CLOCK_MONOTONIC, &deadline);
+        deadline.tv_sec += TC_INTERVAL_SEC;
+        int rc = 0;
 
         tc_log(TC_DEBUG, "Eviction worker checking memory");
+
+        pthread_mutex_lock(&config->cache->worker_lock);
+        while (!atomic_load(&config->cache->shutdown) && rc != ETIMEDOUT)
+        {
+            rc = pthread_cond_timedwait(
+                &config->cache->worker_cond,
+                &config->cache->worker_lock,
+                &deadline
+            );
+        }
+        pthread_mutex_unlock(&config->cache->worker_lock);
 
         // exit during shutdown
         if(atomic_load(&config->cache->shutdown))
@@ -71,8 +85,12 @@ void* worker(void* arg) {
 
 void exit_worker(Cache* cache, pthread_t* worker_thread) {
     atomic_store(&cache->shutdown, true);
+
+    pthread_mutex_lock(&cache->worker_lock);
+    pthread_cond_broadcast(&cache->worker_cond);
+    pthread_mutex_unlock(&cache->worker_lock);
+
     int err = pthread_join(*worker_thread, NULL);  
-    
     if (err != 0) {
         tc_log(TC_ERROR, "pthread_join failed: %d (%s)\n",
                 err, strerror(err));
