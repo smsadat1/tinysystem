@@ -95,25 +95,30 @@ typedef struct cache_t {
     
     cache_entry** buckets;
     size_t entries;
-    size_t mem_used;
+
+    // atomic because both eviction worker and main thread needs to access it 
+    atomic_size_t mem_used;
+    
     size_t mem_max;
     
     EvictionPolicy policy;
     cache_entry* lru_head;
     cache_entry* lru_tail;
+    pthread_mutex_t eviction_lock;
     
+    // atomic because shutdown state needs to be synced accross threads
     atomic_bool shutdown;
+    
     pthread_mutex_t worker_lock;
     pthread_cond_t worker_cond;
 
-    pthread_mutex_t lock;   // cache lock
+    pthread_mutex_t* lock;   // cache lock (per bucket)
 } Cache;
 
 
 // LFU
 cache_entry* find_lfu_victim(Cache* c);
 
-// LRU
 void lru_insert_lock(Cache* c, cache_entry* ce);
 void lru_update_lock(Cache* c, cache_entry* ce);
 void lru_remove_lock(Cache* c, cache_entry* ce);
@@ -126,12 +131,11 @@ void destroy_cache(Cache* cache);
 uint64_t sdbm_hash(const char* key);
 
 // used by SET (thread safe)
-bool insert(Cache* c, char* key, void* value, size_t value_len);
-// used by GET, TTL, EXPIRE, EXISTS
-cache_entry* search(Cache* ce, char* key);
+bool insert(Cache* c, char* key, void* value, size_t value_len, size_t bucket_idx);
+// used by GET, EXPIRE, EXISTS
+cache_entry* search(Cache* c, char* key, size_t bucket_idx);
 // used by DELETE
-bool delete(Cache* c, char* key);
-
+bool delete(Cache* c, char* key, size_t bucket_idx);
 
 /* =================================================== Persistent Layer =================================================== */
 
