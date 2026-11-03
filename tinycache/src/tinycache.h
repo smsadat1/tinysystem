@@ -22,7 +22,6 @@
 #include <netdb.h> 
 #include <netinet/in.h> 
 #include <unistd.h>
-#include <zlib.h>
 
 extern const char *TINYCACHE_PATH;
 #define TC_DEFAULT_PATH "/srv/archive/metadata"
@@ -82,8 +81,8 @@ typedef struct cache_entry_t {
     void *value;
     size_t value_len;
     
-    bool expiry;
-    uint64_t expires_at;
+    // bool expiry;
+    // uint64_t expires_at;
     
     // count access frequency for LFU
     uint32_t frequency;    
@@ -127,7 +126,7 @@ void destroy_cache(Cache* cache);
 uint64_t sdbm_hash(const char* key);
 
 // used by SET (thread safe)
-bool insert(Cache* c, char* key, void* value, size_t value_len, int ttl);
+bool insert(Cache* c, char* key, void* value, size_t value_len);
 // used by GET, TTL, EXPIRE, EXISTS
 cache_entry* search(Cache* ce, char* key);
 // used by DELETE
@@ -189,8 +188,6 @@ void* tc_get(Cache* c, command* str, size_t* value_len);
 bool tc_delete(Cache* c, command* str);
 bool tc_exists(Cache* c, command* str);
 bool tc_expire(Cache* c, command* str);
-int32_t tc_ttl(Cache* c, command* str);
-void tc_stat(int conn_fd, Cache* c);
 
 typedef struct WorkerConfig_t {
     int max_mem_mb;
