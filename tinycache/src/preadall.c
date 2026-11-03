@@ -15,6 +15,7 @@ bool pread_all(int fd, void *buf, size_t count, off_t offset) {
             if(errno == EINTR) 
                 continue;
 
+            tc_log(TC_ERROR, "%s | fd=%d offset=%jd size=%zd", strerror(errno), fd, (intmax_t)offset, n);
             perror("pread");
             return false;
         }

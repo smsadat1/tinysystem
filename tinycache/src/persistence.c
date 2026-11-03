@@ -47,12 +47,16 @@ bool tc_add_record(char *key, void *value, size_t value_len) {
     }
 
     off_t record_offset = st.st_size;    
-    size_t keylen = strlen(key);
-    uint8_t op = RECORD_OP_DELETE;
+    uint16_t keylen = (uint16_t)strlen(key);    // exact 2 bytes
+    uint32_t valuelen = (uint32_t)value_len;    // exact 4 bytes
+    uint8_t op = RECORD_OP_SET;
     uint32_t magic = TC_RECORD_MAGIC;
 
     pwrite_all(record_fd, value, value_len, record_offset);
     record_offset += (off_t)value_len;
+
+    pwrite_all(record_fd, &valuelen, sizeof(valuelen), record_offset);
+    record_offset += (off_t)sizeof(valuelen);
 
     pwrite_all(record_fd, key, keylen, record_offset);
     record_offset += (off_t)keylen;
@@ -91,7 +95,7 @@ bool tc_get_record(char* key, void** out_value, size_t* valuelen) {
         return false;
     }
 
-    int record_fd = open(record_file, O_CREAT | O_WRONLY, 0750);
+    int record_fd = open(record_file, O_CREAT | O_RDONLY, 0750);
     if(record_fd == -1) {
         perror("open");
         return false;
@@ -169,7 +173,7 @@ bool tc_delete_record(char* key) {
 
     off_t record_offset = st.st_size;    
     size_t keylen = strlen(key);
-    uint8_t op = RECORD_OP_SET;
+    uint8_t op = RECORD_OP_DELETE;
     uint32_t magic = TC_RECORD_MAGIC;
 
     pwrite_all(record_fd, key, keylen, record_offset);

@@ -21,11 +21,16 @@ uint8_t revscan(
     *out_value = NULL;
     *out_value_len = 0;
 
+    // tc_log(TC_DEBUG, "START count=%jd", (intmax_t)count);
+
+
     while(count > 0) {
         
         uint32_t magic;
         if(!pread_all(record_fd, &magic, sizeof(magic), count - (off_t)sizeof(magic)))
             return RECORD_READ_ERROR;
+
+        // tc_log(TC_DEBUG, "MAGIC=%08" PRIx32 " count=%jd", magic, (intmax_t)count);
 
         count -= (off_t)sizeof(magic);
         // continue to find records afterwards 
@@ -35,6 +40,8 @@ uint8_t revscan(
         uint8_t op;
         if(!pread_all(record_fd, &op, sizeof(op), count - (off_t)sizeof(op)))
             return RECORD_READ_ERROR;
+
+        // tc_log(TC_DEBUG, "OP=%u count=%jd", op, (intmax_t)count);
 
         count -= (off_t)sizeof(op);
         // when OP is unknown (may induce by disk hardware corruption)
@@ -51,6 +58,8 @@ uint8_t revscan(
         if(!pread_all(record_fd, &keylen, sizeof(keylen), count - (off_t)sizeof(keylen)))
             return RECORD_READ_ERROR;
         
+        // tc_log(TC_DEBUG, "KEYLEN=%u count=%jd", keylen, (intmax_t)count);
+
         // keylen stored as 2 bytes
         count -= (off_t)sizeof(keylen); 
         char key[keylen+1];
@@ -80,6 +89,7 @@ uint8_t revscan(
             // Then continue to find record afterwards when key doesn't match
             continue;
         }
+        // tc_log(TC_DEBUG, "KEY=%s count=%jd", key, (intmax_t)count);
 
         // when last mutation is DELETE then value doesn't matter
         if(op ==  RECORD_OP_DELETE) {
@@ -99,6 +109,8 @@ uint8_t revscan(
         // valuelen is stored as 4 bytes
         if(!pread_all(record_fd, &valuelen, sizeof(valuelen), count-(off_t)sizeof(valuelen))) 
             return RECORD_READ_ERROR;
+
+        // tc_log(TC_DEBUG, "VALUELEN=%" PRIu32 " count=%jd", valuelen, (intmax_t)count);
 
         count -= (off_t)sizeof(valuelen);
 
