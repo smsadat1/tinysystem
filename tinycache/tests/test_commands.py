@@ -66,9 +66,20 @@ def test_memory_accounting(client):
     assert request(client, "SET docs/important.txt mfd74edh") == "OK"
     assert request(client, "STAT KEY") == "2"
     assert request(client, "STAT MEM") == "47" 
+
     assert request(client, "DELETE memes/cat.jpg") == "OK"
     assert request(client, "STAT KEY") == "1"
     assert request(client, "STAT MEM") == "26"
     assert request(client, "DELETE docs/important.txt") == "OK"
     assert request(client, "STAT KEY") == "0"
     assert request(client, "STAT MEM") == "0"
+
+    assert request(client, "SET memes/dog.jpg u489erg4") == "OK"
+    assert request(client, "SET memes/shit.jpg 984y4gre") == "OK"
+    assert request(client, "STAT KEY") == "2"
+    assert request(client, "STAT MEM") == "43"
+    assert request(client, "EXPIRE memes/dog.jpg") == "OK"
+    assert request(client, "EXPIRE memes/shit.jpg") == "OK"
+    assert request(client, "STAT KEY") == "0"
+    assert request(client, "STAT MEM") == "0"
+
