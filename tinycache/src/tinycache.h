@@ -112,7 +112,11 @@ typedef struct cache_t {
     pthread_mutex_t worker_lock;
     pthread_cond_t worker_cond;
 
-    pthread_mutex_t* lock;   // cache lock (per bucket)
+    // disk operations lock (per partition)
+    pthread_mutex_t* disk_lock;
+
+    // cache lock (per bucket)
+    pthread_mutex_t* lock;   
 } Cache;
 
 
@@ -174,9 +178,9 @@ uint8_t revscan(
     size_t *out_value_len
 );
 
-bool tc_add_record(char* key, void* value, size_t value_len);
-bool tc_get_record(char* key, void** out_value, size_t* valuelen);
-bool tc_delete_record(char* key);
+bool tc_add_record(Cache* c,char* key, void* value, size_t value_len);
+bool tc_get_record(Cache* c,char* key, void** out_value, size_t* valuelen);
+bool tc_delete_record(Cache* c, char* key);
 
 
 /* =================================================== API Layer =================================================== */

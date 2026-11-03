@@ -12,7 +12,7 @@ bool tc_set(Cache* c, command* str) {
     }
     
     // first add entry on disk
-    if(!tc_add_record(str->key, str->value, str->value_len)) 
+    if(!tc_add_record(c, str->key, str->value, str->value_len)) 
         return false;
 
     size_t bucket_idx = sdbm_hash(str->key) % TC_BUCKET_COUNT;
@@ -60,7 +60,7 @@ void* tc_get(Cache* c, command* str, size_t* value_len) {
     void* value = NULL;
     size_t disk_value_len = 0;
     
-    if(!tc_get_record(str->key, &value, &disk_value_len)) {
+    if(!tc_get_record(c, str->key, &value, &disk_value_len)) {
         // does not exist on disk record either
         return NULL;
     }
@@ -85,7 +85,7 @@ bool tc_delete(Cache* c, command* str) {
     pthread_mutex_unlock(&c->lock[bucket_idx]);
     
     // then remove entry from disk
-    if(!tc_delete_record(str->key))
+    if(!tc_delete_record(c, str->key))
         result = false;
 
     return result;

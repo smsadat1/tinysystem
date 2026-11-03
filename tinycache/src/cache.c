@@ -15,49 +15,63 @@ void init_cache(Cache* cache) {
     cache->mem_max = TC_MAX_MEMORY_MB * 1024ULL * 1024ULL;
     cache->lru_head = NULL;
     cache->lru_tail = NULL;
-    if (pthread_mutex_init(&cache->eviction_lock, NULL) != 0) {
-        free(cache->buckets);
-        cache->buckets = NULL;
-        abort();        
-    }
 
-    
+    if (pthread_mutex_init(&cache->eviction_lock, NULL) != 0)
+        goto fail;
+
     atomic_init(&cache->shutdown, false);
 
-    if (pthread_mutex_init(&cache->worker_lock, NULL) != 0) {
-        free(cache->buckets);
-        cache->buckets = NULL;
-        abort();        
-    }
+    if (pthread_mutex_init(&cache->worker_lock, NULL) != 0)
+        goto fail;
 
     pthread_condattr_t attr;
     pthread_condattr_init(&attr);
     pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
 
-    if (pthread_cond_init(&cache->worker_cond, &attr) != 0) {
-        free(cache->buckets);
-        cache->buckets = NULL;
-        abort();        
+    if (pthread_cond_init(&cache->worker_cond, &attr) != 0)
+        goto fail;
+
+
+    // initialize the pointer first
+    cache->disk_lock = calloc(TC_MAX_RECORD_PARTITION, sizeof(*cache->disk_lock));
+    if(cache->disk_lock == NULL) 
+        goto fail;
+        
+    // either all locks initialize or none
+    for(int i = 0; i < TC_MAX_RECORD_PARTITION; i++) {
+        
+        if (pthread_mutex_init(&cache->disk_lock[i], NULL) != 0) {
+            while (i > 0)
+                pthread_mutex_destroy(&cache->disk_lock[--i]);
+            goto fail;
+        }    
     }
+
 
     // initialize the pointer first
     cache->lock = calloc(TC_BUCKET_COUNT, sizeof(*cache->lock));
     if (cache->lock == NULL)
-        abort();
+        goto fail;
 
     // either all locks initialize or none
     for(int i = 0; i < TC_BUCKET_COUNT; i++) {
         
         if (pthread_mutex_init(&cache->lock[i], NULL) != 0) {
-            free(cache->buckets);
-            cache->buckets = NULL;
-
             while (i > 0)
                 pthread_mutex_destroy(&cache->lock[--i]);
-            
-            abort();
+            goto fail;
         }    
     }
+
+    // return here, DO NOT slip to fail
+    return;
+
+fail:
+    free(cache->buckets);
+    cache->buckets = NULL;
+    tc_log(TC_ERROR, "Resource initialization failed");
+    abort();        
+
 }
 
 // Traverse and NULL whole cache before exit
@@ -80,8 +94,19 @@ void destroy_cache(Cache* cache) {
         cache->buckets[i] = NULL;
     } 
 
+    pthread_cond_destroy(&cache->worker_cond);
+    pthread_mutex_destroy(&cache->worker_lock);
+    pthread_mutex_destroy(&cache->eviction_lock);
+
     for (int i = 0; i < TC_BUCKET_COUNT; i++)
         pthread_mutex_destroy(&cache->lock[i]);
+
+    free(cache->lock);
+
+    for(int i = 0; i < TC_MAX_RECORD_PARTITION; i++)
+        pthread_mutex_destroy(&cache->disk_lock[i]);
+
+    free(cache->disk_lock);
 
     atomic_init(&cache->mem_used, 0);
     cache->mem_max = 0;

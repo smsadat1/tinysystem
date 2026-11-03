@@ -8,7 +8,13 @@
 *   Because last mutation is all what matters for querying value from key
 */
 
-bool tc_add_record(char *key, void *value, size_t value_len) {
+/*
+    Caller does not need to manage disk lock 
+    All disk operation functions manages disk lock internally
+*/
+bool tc_add_record(
+    Cache* c, char *key, void *value, size_t value_len
+) {
 
     // Select the record partition to append using hash
     uint64_t partition = sdbm_hash(key) % TC_MAX_RECORD_PARTITION;
@@ -32,9 +38,13 @@ bool tc_add_record(char *key, void *value, size_t value_len) {
 
 */
 
+    // Write (append) operation starts here (lock from here)
+    pthread_mutex_lock(&c->disk_lock[partition]);
+
     int record_fd = open(record_file, O_CREAT | O_WRONLY, 0750);
     if(record_fd == -1) {
         perror("open");
+        pthread_mutex_unlock(&c->disk_lock[partition]);
         return false;
     }
 
@@ -43,6 +53,7 @@ bool tc_add_record(char *key, void *value, size_t value_len) {
 
     if(fstat(record_fd, &st) == -1) {
         perror("fstat");
+        pthread_mutex_unlock(&c->disk_lock[partition]);
         return false;
     }
 
@@ -73,15 +84,22 @@ bool tc_add_record(char *key, void *value, size_t value_len) {
     // disk synchronization for persistence
     if(fdatasync(record_fd) == -1) {
         perror("fdatasync");
+        pthread_mutex_unlock(&c->disk_lock[partition]);
         return false;
     }
 
     close(record_fd);
+    pthread_mutex_unlock(&c->disk_lock[partition]);
     return true;
 }
 
-
-bool tc_get_record(char* key, void** out_value, size_t* valuelen) {
+/*
+    Caller does not need to manage disk lock 
+    All disk operation functions manages disk lock internally
+*/
+bool tc_get_record(
+    Cache* c, char* key, void** out_value, size_t* valuelen
+) {
 
     // Select the record partition to append using hash
     uint64_t partition = sdbm_hash(key) % TC_MAX_RECORD_PARTITION;
@@ -109,29 +127,40 @@ bool tc_get_record(char* key, void** out_value, size_t* valuelen) {
         return false;
     }
 
-    off_t record_offset = st.st_size;    
+    off_t record_offset = st.st_size;   
+
+    // Read happens inside revscan()
+    pthread_mutex_lock(&c->disk_lock[partition]);
     uint8_t revscan_status = revscan(record_fd, key, strlen(key), record_offset, out_value, valuelen);
 
     switch (revscan_status)
     {
     case RECORD_READ_ERROR:
-        tc_log(TC_ERROR, "Failed to read record at partition: %llu", partition);        
+        tc_log(TC_ERROR, "Failed to read record at partition: %llu", partition);   
+        pthread_mutex_unlock(&c->disk_lock[partition]);     
         return false;
     case RECORD_KEY_NOT_FOUND:
         tc_log(TC_DEBUG, "Key <%s> not found on disk", key);
+        pthread_mutex_unlock(&c->disk_lock[partition]);
         return false;
     /* 
     * Not finding value is expected for DELETED 
     * So those are not count as errors
+    * break goes to return unlocking disk_lock
     */
     default:
         break;
     }
 
+    pthread_mutex_unlock(&c->disk_lock[partition]);
     return true;
 }
 
-bool tc_delete_record(char* key) {
+/*
+    Caller does not need to manage disk lock 
+    All disk operation functions manages disk lock internally
+*/
+bool tc_delete_record(Cache* c, char* key) {
 
     // Select the record partition to append using hash
     uint64_t partition = sdbm_hash(key) % TC_MAX_RECORD_PARTITION;
@@ -155,11 +184,13 @@ bool tc_delete_record(char* key) {
     |---------------|----------|---------|----------------|
 
 */
-
+    // Write (append) operation starts here (lock from here)
+    pthread_mutex_lock(&c->disk_lock[partition]);
 
     int record_fd = open(record_file, O_CREAT | O_WRONLY, 0750);
     if(record_fd == -1) {
         perror("open");
+        pthread_mutex_unlock(&c->disk_lock[partition]);
         return false;
     }
 
@@ -168,6 +199,7 @@ bool tc_delete_record(char* key) {
 
     if(fstat(record_fd, &st) == -1) {
         perror("fstat");
+        pthread_mutex_unlock(&c->disk_lock[partition]);
         return false;
     }
 
@@ -190,9 +222,11 @@ bool tc_delete_record(char* key) {
     // disk synchronization for persistence
     if(fdatasync(record_fd) == -1) {
         perror("fdatasync");
+        pthread_mutex_unlock(&c->disk_lock[partition]);
         return false;
     }
 
     close(record_fd);
+    pthread_mutex_unlock(&c->disk_lock[partition]);
     return true;
 }
