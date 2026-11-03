@@ -84,7 +84,7 @@ bool update(
 }
 
 bool insert(
-    Cache* c, char* key, void* value, size_t value_len, int ttl
+    Cache* c, char* key, void* value, size_t value_len
 ) {
     
     if (c == NULL || key == NULL ||
@@ -125,16 +125,6 @@ bool insert(
         memcpy(new_cache_entry->value, value, value_len);
     }
     new_cache_entry->value_len = value_len;
-
-    // assign expiry
-    if(ttl == TC_NO_EXPIRY) {
-        new_cache_entry->expiry = false;
-        new_cache_entry->expires_at = 0;
-    } 
-    else {
-        new_cache_entry->expires_at = (uint64_t)(time(NULL) + ttl);
-        new_cache_entry->expiry = true;
-    }
 
     // thread safety during entry
     pthread_mutex_lock(&c->lock);

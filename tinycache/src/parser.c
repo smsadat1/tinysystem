@@ -101,6 +101,25 @@ void parse(int conn_fd, Cache* cache, char commandbuf[]) {
             send_result(conn_fd, &no, 1);
         } 
     }
+    else if(strcmp(command_type, "EXPIRE") == 0) {
+        
+        char* key = strtok(NULL, " ");
+
+        command c = {
+            .key = key,
+            .value = "", .value_len = 0, 
+        };
+
+        if(tc_expire(cache, &c)) 
+        {
+            tc_log(TC_DEBUG, "Send: %s", "OK");
+            send_result(conn_fd, "OK", sizeof("OK") - 1);
+        }
+        else {
+            tc_log(TC_DEBUG, "Send: %s", "FAILED");
+            send_result(conn_fd, "FAILED", sizeof("FAILED")-1);       
+        }
+    }
     else if(strcmp(command_type, "PING") == 0 || 
         strcmp(command_type, "PING\n") == 0 ) {
         send_result(conn_fd, "PONG", sizeof("PONG")-1);
