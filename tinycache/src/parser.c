@@ -137,7 +137,10 @@ void parse(int conn_fd, Cache* cache, char commandbuf[]) {
         } 
         else if (strcmp(stat_type, "MEM") == 0)
         {
-            size_t cache_mem_bytes = cache->mem_used;
+            size_t cache_mem_bytes = atomic_load_explicit(
+                &cache->mem_used, memory_order_relaxed
+            );
+            
             int len = snprintf(response, sizeof(response), "%zu", cache_mem_bytes);
             send_result(conn_fd, &response, (size_t)len);
         }

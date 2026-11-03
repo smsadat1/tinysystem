@@ -11,10 +11,16 @@ void init_cache(Cache* cache) {
     }
 
     cache->entries = 0;
-    cache->mem_used = 0;
+    atomic_init(&cache->mem_used, 0);
     cache->mem_max = TC_MAX_MEMORY_MB * 1024ULL * 1024ULL;
     cache->lru_head = NULL;
     cache->lru_tail = NULL;
+    if (pthread_mutex_init(&cache->eviction_lock, NULL) != 0) {
+        free(cache->buckets);
+        cache->buckets = NULL;
+        abort();        
+    }
+
     
     atomic_init(&cache->shutdown, false);
 
@@ -34,11 +40,24 @@ void init_cache(Cache* cache) {
         abort();        
     }
 
-    if (pthread_mutex_init(&cache->lock, NULL) != 0) {
-        free(cache->buckets);
-        cache->buckets = NULL;
+    // initialize the pointer first
+    cache->lock = calloc(TC_BUCKET_COUNT, sizeof(*cache->lock));
+    if (cache->lock == NULL)
         abort();
-    }    
+
+    // either all locks initialize or none
+    for(int i = 0; i < TC_BUCKET_COUNT; i++) {
+        
+        if (pthread_mutex_init(&cache->lock[i], NULL) != 0) {
+            free(cache->buckets);
+            cache->buckets = NULL;
+
+            while (i > 0)
+                pthread_mutex_destroy(&cache->lock[--i]);
+            
+            abort();
+        }    
+    }
 }
 
 // Traverse and NULL whole cache before exit
@@ -61,7 +80,10 @@ void destroy_cache(Cache* cache) {
         cache->buckets[i] = NULL;
     } 
 
-    cache->mem_used = 0;
+    for (int i = 0; i < TC_BUCKET_COUNT; i++)
+        pthread_mutex_destroy(&cache->lock[i]);
+
+    atomic_init(&cache->mem_used, 0);
     cache->mem_max = 0;
     free(cache->buckets);
     cache->buckets = NULL;
@@ -69,7 +91,7 @@ void destroy_cache(Cache* cache) {
 
 
 bool update(
-    Cache* c, cache_entry* ce, void* value, size_t value_len
+    Cache* c, cache_entry* ce, void* value, size_t value_len, size_t bucket_idx
 ) {
     void* new_value = NULL;
     
@@ -81,26 +103,30 @@ bool update(
         memcpy(new_value, value, value_len);
     }
 
-    pthread_mutex_lock(&c->lock);
+    pthread_mutex_lock(&c->lock[bucket_idx]);
 
-    // update to new value length
-    c->mem_used -= ce->value_len;
-    c->mem_used += value_len;
+    /* update to new value length
+        (later upate it with CAS loop)
+    */
+    atomic_fetch_sub(&c->mem_used, ce->value_len);
+    atomic_fetch_add(&c->mem_used, value_len);
 
     // delete older value then add new value
     free(ce->value);
     ce->value = new_value;
     ce->value_len = value_len;
 
-    pthread_mutex_unlock(&c->lock);
-
+    pthread_mutex_lock(&c->eviction_lock);
     lru_update_lock(c, ce);
+    pthread_mutex_unlock(&c->eviction_lock);
+
+    pthread_mutex_unlock(&c->lock[bucket_idx]);
 
     return true;
 }
 
 bool insert(
-    Cache* c, char* key, void* value, size_t value_len
+    Cache* c, char* key, void* value, size_t value_len, size_t bucket_idx
 ) {
     
     if (c == NULL || key == NULL ||
@@ -108,10 +134,10 @@ bool insert(
        return false;
     }
 
-    cache_entry* ce = search(c, key);
+    cache_entry* ce = search(c, key, bucket_idx);
     if(ce != NULL) {
         // If key already exists, overwrite older value and return
-        return update(c, ce, value, value_len);
+        return update(c, ce, value, value_len, bucket_idx);
     }
 
     size_t bucket_index = sdbm_hash(key) % TC_BUCKET_COUNT;
@@ -143,7 +169,7 @@ bool insert(
     new_cache_entry->value_len = value_len;
 
     // thread safety during entry
-    pthread_mutex_lock(&c->lock);
+    pthread_mutex_lock(&c->lock[bucket_idx]);
 
     // add at the beginning of bucket
     new_cache_entry->next = c->buckets[bucket_index];
@@ -151,21 +177,25 @@ bool insert(
 
     // increment entry & memory count
     c->entries += 1;   
-    c->mem_used += new_cache_entry->value_len + strlen(new_cache_entry->key);
+    atomic_fetch_add(
+        &c->mem_used, 
+        new_cache_entry->value_len + strlen(new_cache_entry->key)
+    );
 
     // update LRU
+    pthread_mutex_lock(&c->eviction_lock);
     lru_insert_lock(c, new_cache_entry);
+    pthread_mutex_unlock(&c->eviction_lock);
 
-    pthread_mutex_unlock(&c->lock);
+    pthread_mutex_unlock(&c->lock[bucket_idx]);
 
     return true;
 }
 
 
-cache_entry* search(Cache* c, char* key) {
-    size_t bucket_index = sdbm_hash(key) % TC_BUCKET_COUNT;
+cache_entry* search(Cache* c, char* key, size_t bucket_idx) {
 
-    cache_entry* ce = c->buckets[bucket_index];
+    cache_entry* ce = c->buckets[bucket_idx];
     if(ce == NULL) {
         return NULL;
     }
@@ -182,11 +212,10 @@ cache_entry* search(Cache* c, char* key) {
     return NULL;
 }
 
-bool delete(Cache* c, char* key) {
-    size_t bucket_index = sdbm_hash(key) % TC_BUCKET_COUNT;
+bool delete(Cache* c, char* key, size_t bucket_idx) {
 
     cache_entry* prev_entry = NULL;
-    cache_entry* curr_entry = c->buckets[bucket_index];
+    cache_entry* curr_entry = c->buckets[bucket_idx];
     if(curr_entry == NULL) {
         return false;
     }
@@ -197,7 +226,7 @@ bool delete(Cache* c, char* key) {
 
             // head node in bucket
             if(prev_entry == NULL) {
-                c->buckets[bucket_index] = curr_entry->next;
+                c->buckets[bucket_idx] = curr_entry->next;
             }
             // last or middle node in bucket
             else {
@@ -206,10 +235,15 @@ bool delete(Cache* c, char* key) {
 
             // decrement count
             c->entries -= 1;
-            c->mem_used -= (curr_entry->value_len + strlen(curr_entry->key));
+            atomic_fetch_sub(
+                &c->mem_used,
+                curr_entry->value_len + strlen(curr_entry->key)
+            );
 
             // update LRU (remove entry from LRU list before final deletion)
+            pthread_mutex_lock(&c->eviction_lock);
             lru_remove_lock(c, curr_entry);
+            pthread_mutex_unlock(&c->eviction_lock);
 
             free(curr_entry->key);
             free(curr_entry->value);

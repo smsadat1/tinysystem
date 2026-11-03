@@ -4,9 +4,11 @@
 // thread safe
 void remove_entry(Cache* c, cache_entry* ce) {
    
-    pthread_mutex_lock(&c->lock);
-    delete(c, ce->key);
-    pthread_mutex_unlock(&c->lock);
+    size_t bucket_idx = sdbm_hash(ce->key) % TC_BUCKET_COUNT;
+
+    pthread_mutex_lock(&c->lock[bucket_idx]);
+    delete(c, ce->key, bucket_idx);
+    pthread_mutex_unlock(&c->lock[bucket_idx]);
 }
 
 static cache_entry* choose_victim_lock(Cache* c) {
@@ -57,25 +59,35 @@ void* worker(void* arg) {
         if(atomic_load(&config->cache->shutdown))
             break;
 
-        // thread safe eviction
-        pthread_mutex_lock(&config->cache->lock);
 
-        // eviction starts when max memory usage exceed
-        if(config->cache->mem_used > config->cache->mem_max) {
+        // Eviction starts when max memory usage exceed
+        if(atomic_load_explicit(
+                &config->cache->mem_used, memory_order_relaxed
+            ) > config->cache->mem_max
+        ) {
             
             puts("Warning: Memory limit exceeded!\nPerforming cache eviction");
 
-            while (config->cache->mem_used > config->cache->mem_max)
+            while (atomic_load_explicit(
+                &config->cache->mem_used, memory_order_relaxed
+            ) > config->cache->mem_max)
             {
+                /*
+                    Everywhere in the code any operation related to LRU list 
+                    Must be protected by eviction lock
+                    Because LRU list is separate from hash buckets so it is managed separately from cache lock
+                */
+                pthread_mutex_lock(&config->cache->eviction_lock);
                 cache_entry* victim = choose_victim_lock(config->cache);
+                pthread_mutex_unlock(&config->cache->eviction_lock);
+                
                 if(victim == NULL) {
                     break;
                 }
+                
                 remove_entry(config->cache, victim);
             }
         }
-
-        pthread_mutex_unlock(&config->cache->lock);
     }
 
     // exit
@@ -86,6 +98,10 @@ void* worker(void* arg) {
 void exit_worker(Cache* cache, pthread_t* worker_thread) {
     atomic_store(&cache->shutdown, true);
 
+    /*
+        Worker state transition 
+        Must be protected by worker_lock like following
+    */
     pthread_mutex_lock(&cache->worker_lock);
     pthread_cond_broadcast(&cache->worker_cond);
     pthread_mutex_unlock(&cache->worker_lock);

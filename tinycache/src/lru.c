@@ -3,6 +3,8 @@
 /*
     Caller is responsible to hold cache lock
     Adds new entry to the head of LRU list
+    Remember to lock cache before locking eviction 
+    And unlock eviction before unlocking cache
 */
 void lru_insert_lock(Cache* c, cache_entry* ce) {
     ce->lru_prev = NULL;
@@ -22,6 +24,8 @@ void lru_insert_lock(Cache* c, cache_entry* ce) {
 /*
     Caller is responsible to hold cache lock
     Removes entry from the tail of LRU list during DELETE
+    Remember to lock cache before locking eviction 
+    And unlock eviction before unlocking cache
 */
 void lru_remove_lock(Cache* c, cache_entry* ce) {
 
@@ -50,6 +54,8 @@ void lru_remove_lock(Cache* c, cache_entry* ce) {
 /*
     Caller is responsible to hold cache lock
     Moves entry to the head of LRU list during GET, SET (update), EXISTS operations
+    Remember to lock cache before locking eviction 
+    And unlock eviction before unlocking cache
 */
 void lru_update_lock(Cache* c, cache_entry* ce) {
 
