@@ -78,8 +78,8 @@ def test_memory_accounting(client):
     assert request(client, "SET memes/shit.jpg 984y4gre") == "OK"
     assert request(client, "STAT KEY") == "2"
     assert request(client, "STAT MEM") == "43"
-    assert request(client, "EXPIRE memes/dog.jpg") == "OK"
-    assert request(client, "EXPIRE memes/shit.jpg") == "OK"
+    assert request(client, "EVICT memes/dog.jpg") == "OK"
+    assert request(client, "EVICT memes/shit.jpg") == "OK"
     assert request(client, "STAT KEY") == "0"
     assert request(client, "STAT MEM") == "0"
 
