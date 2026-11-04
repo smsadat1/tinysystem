@@ -63,6 +63,26 @@ void parse(int conn_fd, Cache* cache, char commandbuf[]) {
             free(value);
         }
     } 
+    else if(strcmp(command_type, "LIST") == 0) {
+
+        command c = {
+            // key is actually the pattern here
+           .key = strtok(NULL, " "),
+           .value = "", .value_len = 0, .ttl = 0,
+        };
+
+        key_list* keylist = tc_get_keylist(cache, c.key);
+        if (keylist == NULL) 
+        {
+            tc_log(TC_DEBUG, "Send: %s", "(nil)");
+            send_result(conn_fd, "(nil)", sizeof("(nil)")-1);
+        }
+        else {
+            tc_log(TC_DEBUG, "Send key list with prefix: %s", c.key);
+            send_result_list(conn_fd, keylist);
+            tc_free_keylist(keylist);
+        }
+    } 
     else if(strcmp(command_type, "DELETE") == 0) {
         
         command c = {
