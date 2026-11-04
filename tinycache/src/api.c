@@ -112,7 +112,7 @@ bool tc_exists(Cache* c, command* str) {
     return true;
 }
 
-bool tc_expire(Cache* c, command* str) {
+bool tc_evict(Cache* c, command* str) {
 
     size_t bucket_idx = sdbm_hash(str->key) % TC_BUCKET_COUNT;    
     bool result = false;

@@ -6,6 +6,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <fnmatch.h>
 #include <inttypes.h>
 #include <pthread.h>
 #include <stdarg.h>
@@ -195,7 +196,7 @@ bool tc_set(Cache* c, command* str);
 void* tc_get(Cache* c, command* str, size_t* value_len);
 bool tc_delete(Cache* c, command* str);
 bool tc_exists(Cache* c, command* str);
-bool tc_expire(Cache* c, command* str);
+bool tc_evict(Cache* c, command* str);
 
 typedef struct WorkerConfig_t {
     int max_mem_mb;

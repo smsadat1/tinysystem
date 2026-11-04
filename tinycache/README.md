@@ -16,6 +16,7 @@ $ sudo ./setup.sh
 | `DELETE` | Remove a key               
 | `GET`    | Retrieve a value           
 | `EXIST`  | Check whether a key exists 
+| `EVICT`  | Remove the entry only from cache
 | `STAT`   | Status                     
 | `PING`   | PING PONG             
 
@@ -61,6 +62,14 @@ EXIST <key>
                     └── Absent → send "N" to client
 ```
 **Happens in a single mutex lock**
+
+```text
+EXPIRE <key>
+  ├── Cache hit → Add expiry → Update LRU → send "Y" to client
+  └── Cache miss → send "FAILED" to client
+```
+**Happens in a single mutex lock**
+
 
 ```text
 STAT KEY ── send client <number of keys in cache>

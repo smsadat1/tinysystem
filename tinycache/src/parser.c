@@ -101,7 +101,7 @@ void parse(int conn_fd, Cache* cache, char commandbuf[]) {
             send_result(conn_fd, &no, 1);
         } 
     }
-    else if(strcmp(command_type, "EXPIRE") == 0) {
+    else if(strcmp(command_type, "EVICT") == 0) {
         
         char* key = strtok(NULL, " ");
 
@@ -110,7 +110,7 @@ void parse(int conn_fd, Cache* cache, char commandbuf[]) {
             .value = "", .value_len = 0, 
         };
 
-        if(tc_expire(cache, &c)) 
+        if(tc_evict(cache, &c)) 
         {
             tc_log(TC_DEBUG, "Send: %s", "OK");
             send_result(conn_fd, "OK", sizeof("OK") - 1);
