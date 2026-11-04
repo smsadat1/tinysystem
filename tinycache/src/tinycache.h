@@ -192,11 +192,24 @@ typedef struct command_t {
     uint64_t ttl;
 } command;
 
+typedef struct {
+    char *key;
+    void *value;
+    size_t value_len;
+} key_result;
+
+typedef struct key_list_t {
+    key_result *items;
+    size_t count;
+} key_list;
+
 bool tc_set(Cache* c, command* str);
 void* tc_get(Cache* c, command* str, size_t* value_len);
 bool tc_delete(Cache* c, command* str);
 bool tc_exists(Cache* c, command* str);
 bool tc_evict(Cache* c, command* str);
+key_list* tc_get_keylist(Cache* c, const char* pattern);
+void tc_free_keylist(key_list* keylist);
 
 typedef struct WorkerConfig_t {
     int max_mem_mb;
@@ -212,6 +225,7 @@ void tc_server(Cache* cache);
 
 // output to client
 void send_result(int conn_fd, void* result, size_t resultlen);
+void send_result_list(int conn_fd, key_list* keylist);
 
 // command parsing from server
 void parse_command(Cache* cache, int conn_fd);
