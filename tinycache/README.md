@@ -1,5 +1,5 @@
-# TinyCache
-**A lightweight key-value store with LRU & LFU eviction available.**
+# hardKV
+**Key value database with cache and persistent hash partitioned append only binary records.**
 
 ## Setup
 ```bash
@@ -15,6 +15,7 @@ $ sudo ./setup.sh
 | `SET`    | Store/update a key         
 | `DELETE` | Remove a key               
 | `GET`    | Retrieve a value           
+| `LIST`   | Get key values from pattern match
 | `EXIST`  | Check whether a key exists 
 | `EVICT`  | Remove the entry only from cache
 | `STAT`   | Status                     
