@@ -1,0 +1,3 @@
+[submodule "hardKV"]
+	path = hardKV
+	url = git@github.com:smsadat1/hardKV.git
